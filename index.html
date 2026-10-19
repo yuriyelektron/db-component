@@ -1,0 +1,3254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Учет электронных компонентов v8.9</title>
+
+    <!-- ============ PWA ============ -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#1e293b">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Склад">
+    <!-- ============================ -->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb; --primary-hover: #1d4ed8;
+            --bg-color: #f1f5f9; --card-bg: #ffffff;
+            --text-main: #1e293b; --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --danger-color: #ef4444; --danger-hover: #dc2626;
+            --success-color: #10b981; --success-hover: #059669;
+            --file-color: #0d9488; --file-hover: #0f766e;
+            --info-color: #0284c7; --info-hover: #0369a1;
+            --shadow-xs: 0 1px 2px rgba(15, 23, 42, .05);
+            --shadow-sm: 0 1px 3px rgba(15, 23, 42, .08);
+            --shadow-md: 0 4px 12px rgba(15, 23, 42, .08);
+            --shadow-lg: 0 10px 30px rgba(15, 23, 42, .12);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body {
+            background: radial-gradient(circle at 20% 0%, #eef2ff 0%, transparent 40%),
+                        radial-gradient(circle at 100% 100%, #ecfeff 0%, transparent 40%), #f1f5f9;
+            color: var(--text-main); padding: 24px 20px;
+            display: flex; justify-content: center; min-height: 100vh;
+            transition: background .3s, color .3s;
+        }
+        .container { width: 100%; max-width: 1450px; }
+
+        header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: white; padding: 22px 26px; border-radius: 18px; margin-bottom: 22px;
+            box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255,255,255,.05) inset;
+            position: relative; overflow: hidden;
+        }
+        header::before {
+            content: ''; position: absolute; top: -50%; right: -10%;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(99, 102, 241, .25) 0%, transparent 60%);
+            pointer-events: none;
+        }
+        header::after {
+            content: ''; position: absolute; bottom: -60%; left: 30%;
+            width: 350px; height: 350px;
+            background: radial-gradient(circle, rgba(13, 148, 136, .18) 0%, transparent 60%);
+            pointer-events: none;
+        }
+        .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; position: relative; z-index: 1; }
+        .header-brand { display: flex; align-items: center; gap: 16px; min-width: 0; }
+        .logo-badge {
+            width: 52px; height: 52px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 14px; display: flex; align-items: center; justify-content: center;
+            font-size: 26px;
+            box-shadow: 0 8px 20px rgba(99, 102, 241, .4), 0 0 0 1px rgba(255,255,255,.1) inset;
+            flex-shrink: 0;
+        }
+        .header-title-block h1 { font-size: 21px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .version-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(147, 197, 253, .18);
+            color: #93c5fd;
+            padding: 3px 9px;
+            border-radius: 8px;
+            letter-spacing: .04em;
+            border: 1px solid rgba(147, 197, 253, .3);
+            vertical-align: middle;
+        }
+        .header-sub { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 12.5px; color: rgba(255,255,255,.62); }
+        .header-sub .stat-item { display: inline-flex; align-items: center; gap: 5px; }
+        .header-sub .stat-item b { color: #93c5fd; font-weight: 700; font-size: 13px; }
+        .header-sub .stat-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,.25); }
+        .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+        .theme-toggle {
+            width: 42px; height: 42px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, .08);
+            border: 1px solid rgba(255, 255, 255, .12);
+            color: white; font-size: 20px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all .2s;
+        }
+        .theme-toggle:hover { background: rgba(255, 255, 255, .15); transform: rotate(15deg) scale(1.05); }
+
+        .header-switcher {
+            display: inline-flex; gap: 4px; padding: 5px;
+            background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .12);
+            border-radius: 14px; backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .15) inset; flex-shrink: 0;
+        }
+        .switcher-btn {
+            display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px;
+            border: none; background: transparent; color: rgba(255, 255, 255, .68);
+            font-size: 14px; font-weight: 600; font-family: inherit; border-radius: 10px;
+            cursor: pointer; transition: all .22s cubic-bezier(.4, 0, .2, 1); white-space: nowrap;
+        }
+        .switcher-btn .switcher-icon { font-size: 16px; filter: grayscale(.3); transition: filter .22s; }
+        .switcher-btn:hover { color: #fff; background: rgba(255, 255, 255, .06); }
+        .switcher-btn.active { background: #fff; color: #1e293b; box-shadow: 0 4px 10px rgba(0,0,0,.25); }
+        .switcher-btn.active .switcher-icon { filter: none; }
+
+        .files-panel {
+            background: linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%);
+            border: 1px solid #d8b4fe; border-radius: 16px; padding: 14px 18px;
+            margin-bottom: 22px; box-shadow: var(--shadow-md);
+        }
+
+        .files-footer {
+            padding: 8px 4px;
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        }
+        .files-footer .spacer { flex: 1; }
+        .btn-xl {
+            padding: 10px 16px; font-size: 13.5px; font-weight: 700; border-radius: 10px;
+            display: inline-flex; align-items: center; gap: 6px;
+            border: none; cursor: pointer; transition: all .15s; font-family: inherit;
+            box-shadow: 0 1px 3px rgba(0,0,0,.1); white-space: nowrap;
+        }
+        .btn-xl:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.15); }
+        .btn-xl.excel { background: linear-gradient(135deg, #217346 0%, #185c37 100%); color: #fff; }
+        .btn-xl.qr { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #fff; }
+        .btn-xl.scan { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; }
+        .btn-xl.history { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: #fff; }
+        .btn-xl.settings { background: linear-gradient(135deg, #64748b 0%, #475569 100%); color: #fff; }
+        .btn-xl.clear { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff; }
+
+        #save-flash-global {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12.5px;
+            font-weight: 700;
+            opacity: 0;
+            transition: opacity .35s;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        #save-flash-global.show { opacity: 1; }
+        html[data-theme="dark"] #save-flash-global {
+            background: #065f46;
+            color: #d1fae5;
+        }
+
+        .fsa-warn {
+            margin-top: 10px; font-size: 12px; color: #b45309;
+            padding: 10px 14px; background: #fef3c7; border-radius: 8px;
+            border-left: 4px solid #f59e0b; display: flex; align-items: flex-start; gap: 8px;
+        }
+        .fsa-warn.hidden { display: none; }
+
+        .storage-card {
+            background: var(--card-bg); border-radius: 12px; box-shadow: var(--shadow-xs);
+            overflow: hidden; position: relative; display: flex; flex-direction: column;
+            border: 1px solid var(--border-color); transition: box-shadow .2s;
+        }
+        .storage-card + .storage-card { margin-top: 12px; }
+        .storage-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #0d9488; }
+        .storage-card.storage-catalog::before { background: #2563eb; }
+        .storage-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px 18px; gap: 10px; }
+        .storage-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+        .storage-title .icon-badge { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; background: #ccfbf1; color: #0f766e; flex-shrink: 0; }
+        .storage-card.storage-catalog .storage-title .icon-badge { background: #dbeafe; color: #1e40af; }
+        .storage-title-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+        .storage-title-main { font-size: 11px; font-weight: 800; letter-spacing: .08em; color: #475569; text-transform: uppercase; }
+        .storage-title-file { font-size: 11.5px; color: var(--text-muted); font-family: 'Consolas', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+        .storage-title-file.empty { color: #cbd5e1; font-style: italic; }
+        .storage-title-file.loaded { color: #0f766e; font-weight: 600; }
+        .storage-card.storage-catalog .storage-title-file.loaded { color: #1e40af; }
+        .save-flash {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #d1fae5; color: #065f46; padding: 4px 10px; border-radius: 20px;
+            font-size: 11px; font-weight: 700;
+            opacity: 0; transform: translateY(-2px); transition: opacity .35s, transform .35s;
+            flex-shrink: 0; pointer-events: none; white-space: nowrap;
+        }
+        .save-flash.show { opacity: 1; transform: translateY(0); }
+        .storage-body { padding: 0 14px 12px 18px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .action-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 7px 12px; border: none; border-radius: 7px;
+            font-size: 12.5px; font-weight: 600; cursor: pointer;
+            transition: all .15s; font-family: inherit; white-space: nowrap;
+        }
+        .action-btn.open { background: #0d9488; color: #fff; box-shadow: 0 1px 3px rgba(13,148,136,.35); }
+        .action-btn.open:hover { background: #0f766e; transform: translateY(-1px); }
+        .storage-card.storage-catalog .action-btn.open { background: #2563eb; }
+        .storage-card.storage-catalog .action-btn.open:hover { background: #1d4ed8; }
+        .action-btn.save { background: #6b21a8; color: #fff; box-shadow: 0 1px 3px rgba(107,33,168,.35); }
+        .action-btn.save:hover { background: #581c87; transform: translateY(-1px); }
+        .storage-card.storage-catalog .action-btn.save { background: #0369a1; }
+        .storage-card.storage-catalog .action-btn.save:hover { background: #075985; }
+        .action-btn.icon-only { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; padding: 7px 9px; }
+        .action-btn.icon-only:hover { background: #e2e8f0; color: #1e293b; }
+        .action-btn.icon-only.danger:hover { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+        .action-btn.icon-only.hidden { display: none; }
+
+        .autosave-switch {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 13px; color: #6b21a8; font-weight: 600;
+            cursor: pointer; user-select: none; padding: 8px 12px;
+            background: #f3e8ff; border-radius: 8px; transition: background .15s;
+        }
+        .autosave-switch:hover { background: #ede9fe; }
+        .autosave-switch input { display: none; }
+        .toggle-track { width: 36px; height: 20px; background: #cbd5e1; border-radius: 20px; position: relative; transition: background .2s; flex-shrink: 0; }
+        .toggle-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .2s; }
+        .autosave-switch input:checked + .toggle-track { background: #10b981; }
+        .autosave-switch input:checked + .toggle-track::after { transform: translateX(16px); }
+
+        .tab-pane { display: none; animation: fadeIn .25s ease-out; }
+        .tab-pane.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 20px;
+            transition: grid-template-columns 0.3s ease;
+        }
+        .main-layout.collapsed { grid-template-columns: 1fr; }
+        .main-layout.collapsed .left-column { display: none; }
+        @media (max-width: 950px) {
+            .main-layout { grid-template-columns: 1fr; }
+            .main-layout.collapsed { grid-template-columns: 1fr; }
+        }
+
+        .collapse-btn {
+            width: 28px; height: 28px;
+            border-radius: 6px;
+            background: #f1f5f9;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px;
+            transition: all .15s;
+            font-family: inherit;
+        }
+        .collapse-btn:hover {
+            background: #e2e8f0;
+            color: var(--primary-color);
+            border-color: #93c5fd;
+        }
+        .expand-tab {
+            display: none;
+            width: 100%;
+            padding: 11px 16px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1.5px dashed #93c5fd;
+            border-radius: 10px;
+            color: #1e40af;
+            font-weight: 600;
+            font-size: 13.5px;
+            cursor: pointer;
+            transition: all .15s;
+            font-family: inherit;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .expand-tab:hover {
+            background: #dbeafe;
+            border-color: #60a5fa;
+            transform: translateY(-1px);
+        }
+        .main-layout.collapsed .expand-tab { display: flex; }
+        html[data-theme="dark"] .expand-tab {
+            background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%);
+            border-color: #3b82f6;
+            color: #bfdbfe;
+        }
+        html[data-theme="dark"] .expand-tab:hover { background: #1e40af; }
+        html[data-theme="dark"] .collapse-btn { background: #334155; color: #cbd5e1; border-color: #475569; }
+        html[data-theme="dark"] .collapse-btn:hover { background: #475569; color: #93c5fd; }
+
+        .catalog-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 800px) { .catalog-layout { grid-template-columns: 1fr; } }
+
+        .card {
+            background: var(--card-bg); border-radius: 14px; padding: 22px;
+            border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);
+            margin-bottom: 20px; transition: box-shadow .2s, background .3s;
+        }
+        .card h2 { font-size: 17px; margin-bottom: 16px; color: var(--text-main); border-bottom: 2px solid var(--bg-color); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .card h2 .count-badge { font-size: 12px; background: #e0e7ff; color: #3730a3; padding: 3px 9px; border-radius: 10px; font-weight: 600; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-muted); }
+
+        .form-control {
+            width: 100%; padding: 10px 12px;
+            border: 1px solid var(--border-color); border-radius: 8px;
+            font-size: 14px; transition: border-color .2s, box-shadow .2s, background .3s;
+            background: var(--card-bg); color: var(--text-main); font-family: inherit;
+        }
+        .form-control:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+        .form-control.duplicate { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.18); background-color: rgba(245,158,11,.08); }
+        textarea.form-control { resize: vertical; min-height: 70px; }
+
+        .name-duplicate-hint {
+            margin-top: 8px; padding: 10px 12px;
+            background: #fef3c7; color: #78350f;
+            border-left: 3px solid #f59e0b; border-radius: 6px;
+            font-size: 12.5px; line-height: 1.5;
+        }
+        .name-duplicate-hint.hidden { display: none; }
+        .name-duplicate-hint .hint-sub { display: block; margin-top: 4px; font-size: 12px; opacity: .85; }
+
+        .input-group { display: flex; gap: 8px; }
+        .btn { padding: 10px 15px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-block { width: 100%; justify-content: center; }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
+        .btn-success { background-color: var(--success-color); color: white; padding: 6px 10px; font-size: 12px; }
+        .btn-success:hover { background-color: var(--success-hover); }
+        .btn-ghost { background: white; color: var(--text-main); border: 1px solid var(--border-color); }
+        .btn-ghost:hover { background: #f1f5f9; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-danger:hover { background-color: var(--danger-hover); }
+
+        .btn-datasheet { background-color: var(--info-color); color: white; font-size: 12px; padding: 5px 10px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; }
+        .btn-datasheet:hover { background-color: var(--info-hover); }
+        .btn-delete { background: none; border: none; color: var(--danger-color); cursor: pointer; font-size: 13px; font-weight: 500; padding: 4px 8px; border-radius: 4px; transition: background-color .2s; }
+        .btn-delete:hover { background-color: #fee2e2; }
+        .btn-edit { background: none; border: none; color: var(--primary-color); cursor: pointer; font-size: 13px; font-weight: 500; padding: 4px 8px; border-radius: 4px; transition: background-color .2s; }
+        .btn-edit:hover { background-color: #dbeafe; }
+        .catalog-item-actions { display: flex; gap: 4px; }
+
+        .toolbar { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        @media (max-width: 700px) { .toolbar { grid-template-columns: 1fr; } }
+
+        .table-container {
+            overflow-y: auto;
+            overflow-x: auto;
+            width: 100%;
+            border-radius: 10px;
+            max-height: calc(100vh - 380px);
+            min-height: 300px;
+        }
+        .table-container::-webkit-scrollbar { width: 8px; height: 8px; }
+        .table-container::-webkit-scrollbar-track { background: transparent; }
+        .table-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: padding-box; }
+        html[data-theme="dark"] .table-container::-webkit-scrollbar-thumb { background: #475569; background-clip: padding-box; }
+        html[data-theme="dark"] .table-container::-webkit-scrollbar-thumb:hover { background: #64748b; background-clip: padding-box; }
+
+        @media (max-width: 700px) {
+            .table-container { max-height: calc(100vh - 320px); }
+        }
+
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+
+        table thead th,
+        table thead th.sortable {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background-color: #f8fafc;
+            box-shadow: inset 0 -2px 0 var(--border-color);
+        }
+        html[data-theme="dark"] table thead th,
+        html[data-theme="dark"] table thead th.sortable {
+            background-color: #0f172a;
+        }
+
+        th.sortable { cursor: pointer; user-select: none; transition: background-color .2s; }
+        th.sortable:hover { background-color: #e2e8f0; }
+        th.sortable .sort-icon { font-size: 11px; margin-left: 5px; color: var(--text-muted); }
+        th {
+            background-color: #f8fafc; color: var(--text-muted);
+            padding: 12px; font-weight: 600;
+            border-bottom: 2px solid var(--border-color); white-space: nowrap;
+            font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em;
+            text-align: center;
+        }
+        td { padding: 12px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        tr:hover { background-color: #f8fafc; }
+
+        .qty-actions { display: flex; align-items: center; gap: 6px; justify-content: center; }
+        .qty-badge { background-color: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 12px; font-weight: 600; min-width: 60px; text-align: center; }
+        .btn-qty { background-color: #f1f5f9; border: 1px solid var(--border-color); width: 26px; height: 26px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-main); }
+        .btn-qty:hover { background-color: #e2e8f0; }
+        .package-badge { background-color: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 12px; cursor: pointer; border: 1px dashed transparent; }
+        .cell-badge { background-color: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px; font-weight: 500; font-size: 13px; cursor: pointer; border: 1px dashed transparent; }
+        .type-badge { background-color: #ede9fe; color: #5b21b6; padding: 4px 8px; border-radius: 4px; font-weight: 500; font-size: 12px; cursor: pointer; border: 1px dashed transparent; white-space: nowrap; }
+        .package-badge:hover, .cell-badge:hover, .type-badge:hover, .editable-desc:hover { border-color: var(--primary-color); }
+        .editable-desc { cursor: pointer; padding: 4px; border-radius: 4px; border: 1px dashed transparent; display: inline-block; width: 100%; }
+        .inline-edit-input { width: 100%; padding: 5px; font-size: 13px; border: 1px solid var(--primary-color); border-radius: 4px; background: var(--card-bg); color: var(--text-main); font-family: inherit; }
+        .edit-controls { display: flex; gap: 4px; margin-top: 4px; }
+        input[type="file"] { display: none; }
+        .actions-cell { display: flex; gap: 8px; align-items: center; justify-content: center; }
+        .empty-row td { text-align: center; color: var(--text-muted); padding: 40px 30px; font-style: italic; }
+        .filter-info { padding: 8px 12px; margin-bottom: 12px; border-radius: 8px; background: #eff6ff; color: #1e40af; font-size: 13px; font-weight: 500; border: 1px solid #bfdbfe; }
+        .filter-info.hidden { display: none; }
+
+        .row-checkbox, .select-all-checkbox {
+            width: 16px; height: 16px;
+            cursor: pointer;
+            accent-color: #2563eb;
+        }
+        .cell-checkbox { text-align: center; padding: 8px 4px !important; }
+
+        .mass-actions {
+            display: none;
+            align-items: center; gap: 8px; flex-wrap: wrap;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1px solid #93c5fd;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            animation: fadeIn .2s;
+        }
+        .mass-actions.show { display: flex; }
+        .mass-counter {
+            font-size: 14px; color: #1e40af; font-weight: 600;
+            padding: 6px 12px; background: #fff; border-radius: 20px;
+            white-space: nowrap;
+        }
+        .mass-counter b { color: #1d4ed8; font-size: 15px; }
+        .mass-btn {
+            padding: 7px 12px; font-size: 13px; font-weight: 600;
+            border-radius: 7px; cursor: pointer;
+            transition: all .15s; font-family: inherit;
+            background: #fff; color: #1e40af;
+            border: 1px solid #bfdbfe;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .mass-btn:hover { background: #dbeafe; border-color: #60a5fa; transform: translateY(-1px); }
+        .mass-btn.danger { color: #dc2626; border-color: #fecaca; }
+        .mass-btn.danger:hover { background: #fee2e2; border-color: #f87171; }
+        .mass-btn.cancel { color: #64748b; border-color: #e2e8f0; }
+        .mass-btn.cancel:hover { background: #f1f5f9; }
+        .mass-spacer { flex: 1; }
+
+        .catalog-list { list-style: none; margin-top: 15px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 10px; }
+        .catalog-list li { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid var(--border-color); font-size: 14px; }
+        .catalog-list li:last-child { border-bottom: none; }
+        .catalog-list li:hover { background: #f8fafc; }
+        .catalog-list .item-name { font-family: 'Consolas', monospace; color: var(--text-main); }
+        .catalog-list .empty-msg { padding: 20px; text-align: center; color: var(--text-muted); font-style: italic; justify-content: center; }
+        .hint { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; padding: 8px 12px; background: #f0f9ff; border-left: 3px solid #0284c7; border-radius: 6px; }
+
+        .history-list {
+            display: flex; flex-direction: column; gap: 8px;
+            max-height: 400px; overflow-y: auto;
+        }
+        .history-item {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            padding: 12px 14px;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+        }
+        .history-item-info { flex: 1; min-width: 0; }
+        .history-item-time { font-weight: 600; color: var(--text-main); font-size: 14px; }
+        .history-item-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+        .history-item .btn { padding: 6px 12px; font-size: 12px; }
+
+        .qr-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+            padding: 16px;
+        }
+        .qr-label {
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+            padding: 10px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            background: white;
+        }
+        .qr-caption {
+            font-size: 14px; font-weight: 700; color: #1e293b;
+            text-align: center; word-break: break-word;
+        }
+
+        .qr-select-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+            padding: 10px 14px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+        .qr-select-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-right: auto;
+        }
+        .qr-select-btn {
+            padding: 6px 12px;
+            font-size: 12.5px;
+            font-weight: 600;
+            border-radius: 7px;
+            cursor: pointer;
+            font-family: inherit;
+            background: #fff;
+            color: var(--primary-color);
+            border: 1px solid #bfdbfe;
+            transition: all .15s;
+        }
+        .qr-select-btn:hover { background: #dbeafe; border-color: #60a5fa; transform: translateY(-1px); }
+
+        .qr-cell-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            max-height: 180px;
+            overflow-y: auto;
+            margin-bottom: 14px;
+        }
+
+        .qr-cell-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            background: #fff;
+            border: 1.5px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Consolas', monospace;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all .15s;
+            user-select: none;
+        }
+        .qr-cell-chip:hover {
+            border-color: #60a5fa;
+            background: #eff6ff;
+        }
+        .qr-cell-chip.selected {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+        }
+        .qr-cell-chip input[type="checkbox"] {
+            display: none;
+        }
+        .qr-cell-chip .qr-check-mark {
+            font-size: 12px;
+            opacity: 0.3;
+            transition: opacity .15s;
+        }
+        .qr-cell-chip.selected .qr-check-mark { opacity: 1; }
+
+        .qr-preview-label {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            margin-bottom: 8px;
+        }
+
+        .qr-empty-msg {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-style: italic;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px dashed var(--border-color);
+        }
+        .qr-empty-msg.hidden { display: none; }
+
+        #scan-video-wrap {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: #0f172a;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #scan-video {
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+        .scan-frame {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 60%;
+            aspect-ratio: 1;
+            transform: translate(-50%, -50%);
+            border: 3px solid #10b981;
+            border-radius: 12px;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,.45);
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .scan-frame::after {
+            content: '';
+            position: absolute;
+            left: 0; right: 0;
+            height: 2px;
+            background: #10b981;
+            box-shadow: 0 0 10px 2px #10b981;
+            animation: scanLine 2s ease-in-out infinite;
+        }
+        @keyframes scanLine {
+            0%, 100% { top: 5%; }
+            50% { top: 95%; }
+        }
+        .scan-cell-title {
+            padding: 12px 14px;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            border-left: 3px solid #f59e0b;
+        }
+        .scan-cell-items {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+        .scan-cell-item {
+            padding: 12px 14px;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        .scan-cell-item-name {
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        .scan-cell-item-meta {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .scan-cell-item-desc {
+            margin-top: 6px;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        .hidden { display: none !important; }
+
+        html[data-theme="dark"] #scan-video-wrap { background: #000; }
+        html[data-theme="dark"] .scan-cell-title { background: #422006; color: #fde68a; border-left-color: #d97706; }
+        html[data-theme="dark"] .scan-cell-item { background: #0f172a; }
+
+        html[data-theme="dark"] .qr-select-toolbar,
+        html[data-theme="dark"] .qr-cell-selector,
+        html[data-theme="dark"] .qr-empty-msg {
+            background: #0f172a;
+        }
+        html[data-theme="dark"] .qr-cell-chip {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-color: #475569;
+        }
+        html[data-theme="dark"] .qr-cell-chip:hover {
+            background: #1e3a5f;
+            border-color: #3b82f6;
+        }
+        html[data-theme="dark"] .qr-cell-chip.selected {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+        html[data-theme="dark"] .qr-select-btn {
+            background: #1e293b;
+            color: #93c5fd;
+            border-color: #3b82f6;
+        }
+        html[data-theme="dark"] .qr-select-btn:hover {
+            background: #1e3a5f;
+        }
+
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(6px);
+            z-index: 1000;
+            align-items: center; justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            transition: opacity .22s ease-out;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        #modal-overlay { z-index: 1100; }
+
+        .modal {
+            background: var(--card-bg); border-radius: 20px; max-width: 540px; width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,.35);
+            animation: modalIn .28s cubic-bezier(.34, 1.4, .64, 1);
+            overflow: hidden; position: relative;
+            color: var(--text-main);
+        }
+        .modal.modal-wide { max-width: 820px; }
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(-16px) scale(.94); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal-close-btn {
+            position: absolute; top: 14px; right: 14px;
+            width: 34px; height: 34px; border-radius: 9px;
+            background: transparent; border: none; font-size: 22px;
+            color: #94a3b8; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all .15s; z-index: 2; line-height: 1; font-family: inherit;
+        }
+        .modal-close-btn:hover { background: #fee2e2; color: #dc2626; transform: scale(1.05); }
+        .modal-header { padding: 24px 26px 8px; display: flex; align-items: flex-start; gap: 14px; }
+        .modal-header .icon {
+            width: 46px; height: 46px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; flex-shrink: 0;
+        }
+        .modal-header .icon.danger { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; }
+        .modal-header .icon.warn   { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #b45309; }
+        .modal-header .icon.info   { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+        .modal-header .icon.success{ background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #059669; }
+        .modal-header .icon.excel  { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #065f46; }
+        .modal-header .icon.history{ background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #6d28d9; }
+        .modal-header .icon.qr     { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4338ca; }
+        .modal-header .icon.scan   { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #059669; }
+        .modal-header .icon.settings{ background: linear-gradient(135deg, #e2e8f0, #cbd5e1); color: #475569; }
+        .modal-title-block { flex: 1; min-width: 0; padding-right: 40px; }
+        .modal-title-block h3 { font-size: 19px; font-weight: 700; color: var(--text-main); margin: 0 0 4px 0; line-height: 1.3; }
+        .modal-title-block .modal-subtitle { font-size: 13px; color: var(--text-muted); line-height: 1.4; margin: 0; display: none; }
+        .modal-title-block .modal-subtitle.show { display: block; }
+        .modal-body { padding: 12px 26px 20px; font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+        .modal-body > * + * { margin-top: 14px; }
+        .modal-body strong { color: var(--text-main); }
+        .modal-body em { font-style: normal; color: #94a3b8; }
+        .modal-body .highlight { background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 4px; font-family: 'Consolas', monospace; font-weight: 600; font-size: 13px; }
+
+        .component-preview {
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 16px;
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+            border-radius: 14px; border: 1px solid #fde68a;
+        }
+        .component-preview-icon {
+            width: 44px; height: 44px; border-radius: 11px;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; flex-shrink: 0;
+            box-shadow: 0 3px 8px rgba(245,158,11,.35);
+        }
+        .component-preview-info { flex: 1; min-width: 0; }
+        .component-preview-name {
+            font-size: 16px; font-weight: 700; color: #78350f;
+            word-break: break-word; margin-bottom: 8px;
+            font-family: 'Consolas', monospace; line-height: 1.3;
+        }
+        .component-preview-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+        .meta-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; border-radius: 20px;
+            background: rgba(255,255,255,.9); font-size: 12px; font-weight: 600;
+            color: #92400e; border: 1px solid rgba(251,191,36,.4);
+        }
+        .meta-chip.primary {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white; border-color: transparent;
+        }
+        .duplicate-actions { padding: 14px 16px; background: #f8fafc; border-radius: 10px; border-left: 3px solid #f59e0b; }
+        .duplicate-actions-title { font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
+        .duplicate-actions-desc { font-size: 14px; color: #64748b; line-height: 1.55; }
+        .duplicate-actions-desc strong { color: var(--text-main); }
+        .result-preview {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 7px 14px; background: #ecfdf5; border-radius: 20px;
+            font-size: 13px; font-weight: 600; color: #065f46;
+            border: 1px solid #a7f3d0; margin-top: 12px;
+        }
+        .result-preview .arrow { color: #10b981; font-size: 15px; }
+        .component-details { background: #f8fafc; border-radius: 12px; padding: 6px 16px; border: 1px solid var(--border-color); }
+        .component-detail-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 14px; }
+        .component-detail-row + .component-detail-row { border-top: 1px solid var(--border-color); }
+        .component-detail-label { color: #94a3b8; min-width: 100px; font-size: 12.5px; font-weight: 500; text-transform: uppercase; letter-spacing: .02em; }
+        .component-detail-value { color: var(--text-main); font-weight: 500; word-break: break-word; flex: 1; }
+        .component-detail-value.strong { font-weight: 700; font-size: 15px; }
+        .modal-warning {
+            margin-top: 10px; padding: 10px 14px; border-radius: 8px;
+            background: #fef3c7; color: #78350f; font-size: 13px;
+            border-left: 3px solid #f59e0b; line-height: 1.5;
+        }
+        .modal-footer {
+            padding: 16px 26px 22px; display: flex; gap: 10px;
+            justify-content: flex-end; flex-wrap: wrap;
+            background: #fafbfc; border-top: 1px solid var(--border-color);
+        }
+        .modal-footer .btn { flex: 0 1 auto; min-width: 120px; justify-content: center; padding: 12px 20px; font-size: 14px; border-radius: 10px; transition: all .15s; }
+        @media (max-width: 480px) { .modal-footer { flex-direction: column-reverse; } .modal-footer .btn { width: 100%; } }
+        .btn-cancel { background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--border-color); }
+        .btn-cancel:hover { background: #f8fafc; color: var(--text-main); }
+        .btn-confirm-danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; box-shadow: 0 2px 6px rgba(220,38,38,.3); }
+        .btn-confirm-danger:hover { background: linear-gradient(135deg, #dc2626, #b91c1c); transform: translateY(-1px); }
+        .btn-confirm-success { background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; box-shadow: 0 2px 6px rgba(5,150,105,.3); }
+        .btn-confirm-success:hover { background: linear-gradient(135deg, #059669, #047857); transform: translateY(-1px); }
+        .btn-confirm-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; box-shadow: 0 2px 6px rgba(37,99,235,.3); }
+        .btn-confirm-primary:hover { background: linear-gradient(135deg, #1d4ed8, #1e40af); transform: translateY(-1px); }
+        #prompt-input { font-size: 15px; padding: 10px 12px; }
+        #prompt-error { display: none; margin-top: 8px; padding: 6px 10px; background: #fee2e2; color: #991b1b; border-radius: 6px; font-size: 13px; border-left: 3px solid #dc2626; }
+        .export-option { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 8px; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; font-size: 14px; }
+        .export-option:hover { background: #f0f9ff; border-color: var(--primary-color); }
+
+        html[data-theme="dark"] {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+        }
+        html[data-theme="dark"] body {
+            background:
+                radial-gradient(circle at 20% 0%, #1e3a5f 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, #0c4a6e 0%, transparent 40%),
+                #0f172a;
+            color: #e2e8f0;
+        }
+        html[data-theme="dark"] .files-panel { background: linear-gradient(135deg, #1e293b 0%, #1a1f3a 100%); border-color: #4c1d95; }
+        html[data-theme="dark"] .autosave-switch { background: #312e81; color: #c7d2fe; }
+        html[data-theme="dark"] .autosave-switch:hover { background: #3730a3; }
+        html[data-theme="dark"] .action-btn.icon-only { background: #334155; color: #cbd5e1; border-color: #475569; }
+        html[data-theme="dark"] .action-btn.icon-only:hover { background: #475569; color: #e2e8f0; }
+        html[data-theme="dark"] th { background-color: #0f172a; color: #94a3b8; }
+        html[data-theme="dark"] th.sortable:hover { background-color: #1e293b; }
+        html[data-theme="dark"] tr:hover { background-color: #0f172a; }
+        html[data-theme="dark"] .form-control:focus { border-color: #60a5fa; }
+        html[data-theme="dark"] .btn-cancel { background: #334155; color: #e2e8f0; border-color: #475569; }
+        html[data-theme="dark"] .btn-cancel:hover { background: #475569; }
+        html[data-theme="dark"] .modal-footer { background: #0f172a; }
+        html[data-theme="dark"] .component-details,
+        html[data-theme="dark"] .duplicate-actions,
+        html[data-theme="dark"] .export-option { background: #0f172a; }
+        html[data-theme="dark"] .component-detail-value { color: #e2e8f0; }
+        html[data-theme="dark"] .duplicate-actions-title { color: #cbd5e1; }
+        html[data-theme="dark"] .duplicate-actions-desc { color: #94a3b8; }
+        html[data-theme="dark"] .duplicate-actions-desc strong { color: #e2e8f0; }
+        html[data-theme="dark"] .catalog-list li:hover { background: #0f172a; }
+        html[data-theme="dark"] .catalog-list .item-name { color: #e2e8f0; }
+        html[data-theme="dark"] .hint { background: #0c4a6e; border-left-color: #0ea5e9; color: #bae6fd; }
+        html[data-theme="dark"] .filter-info { background: #1e3a5f; border-color: #3b82f6; color: #bfdbfe; }
+        html[data-theme="dark"] .qty-badge { background: #1e3a5f; color: #93c5fd; }
+        html[data-theme="dark"] .btn-qty { background: #334155; color: #e2e8f0; }
+        html[data-theme="dark"] .btn-qty:hover { background: #475569; }
+        html[data-theme="dark"] .cell-badge { background: #422006; color: #fde68a; }
+        html[data-theme="dark"] .type-badge { background: #2e1065; color: #ddd6fe; }
+        html[data-theme="dark"] .package-badge { background: #334155; color: #cbd5e1; }
+        html[data-theme="dark"] .btn-datasheet { background-color: #0369a1; }
+        html[data-theme="dark"] .btn-edit { color: #93c5fd; }
+        html[data-theme="dark"] .btn-edit:hover { background-color: #1e3a5f; }
+        html[data-theme="dark"] .history-item { background: #0f172a; }
+        html[data-theme="dark"] .btn-ghost { background: #334155; color: #e2e8f0; border-color: #475569; }
+        html[data-theme="dark"] .btn-ghost:hover { background: #475569; }
+        html[data-theme="dark"] .form-control.duplicate { background-color: rgba(245,158,11,.15); }
+        html[data-theme="dark"] .name-duplicate-hint { background: #422006; color: #fde68a; }
+
+        html[data-theme="dark"] .mass-actions {
+            background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%);
+            border-color: #3b82f6;
+        }
+        html[data-theme="dark"] .mass-counter { background: #0f172a; color: #bfdbfe; }
+        html[data-theme="dark"] .mass-btn { background: #1e293b; color: #bfdbfe; border-color: #3b82f6; }
+        html[data-theme="dark"] .mass-btn:hover { background: #334155; }
+
+        html[data-theme="dark"] .result-preview {
+            background: #064e3b;
+            color: #a7f3d0;
+            border-color: #065f46;
+        }
+        html[data-theme="dark"] .result-preview strong { color: #d1fae5; }
+        html[data-theme="dark"] .result-preview .arrow { color: #34d399; }
+        html[data-theme="dark"] .component-preview {
+            background: linear-gradient(135deg, #422006 0%, #451a03 100%);
+            border-color: #78350f;
+        }
+        html[data-theme="dark"] .component-preview-name { color: #fde68a; }
+        html[data-theme="dark"] .meta-chip {
+            background: rgba(0, 0, 0, .35);
+            color: #fde68a;
+            border-color: rgba(251, 191, 36, .3);
+        }
+        html[data-theme="dark"] .meta-chip.primary {
+            background: linear-gradient(135deg, #d97706, #b45309);
+            color: #fff;
+        }
+        html[data-theme="dark"] .duplicate-actions { border-left-color: #f59e0b; }
+        html[data-theme="dark"] .modal-warning {
+            background: #422006;
+            color: #fde68a;
+            border-left-color: #d97706;
+        }
+
+        body.printing > *:not(#qr-label-overlay) { display: none !important; }
+        body.printing #qr-label-overlay { display: block !important; position: static; background: none; padding: 0; opacity: 1; }
+        body.printing #qr-label-overlay .modal { box-shadow: none; max-width: 100%; border-radius: 0; background: white; }
+        body.printing #qr-label-overlay .modal-header,
+        body.printing #qr-label-overlay .modal-footer,
+        body.printing #qr-label-overlay .modal-close-btn,
+        body.printing #qr-label-overlay .qr-select-toolbar,
+        body.printing #qr-label-overlay .qr-cell-selector,
+        body.printing #qr-label-overlay .qr-preview-label { display: none !important; }
+        body.printing #qr-label-overlay .modal-body { padding: 0; }
+        body.printing .qr-grid { grid-template-columns: repeat(4, 1fr); gap: 6mm; padding: 10mm; }
+        body.printing .qr-label { border: 1px solid #ddd; padding: 4mm; page-break-inside: avoid; }
+        body.printing .qr-caption { font-size: 12pt; }
+        @page { size: A4; margin: 10mm; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="header-inner">
+            <div class="header-brand">
+                <div class="logo-badge">📦</div>
+                <div class="header-title-block">
+                    <h1>Склад компонентов <span class="version-badge">v8.9</span></h1>
+                    <div class="header-sub">
+                        <span class="stat-item">Позиций: <b id="stat-positions">0</b></span>
+                        <span class="stat-dot"></span>
+                        <span class="stat-item">Деталей: <b id="stat-qty">0</b></span>
+                        <span class="stat-dot"></span>
+                        <span class="stat-item">Корпусов: <b id="stat-packages">0</b></span>
+                        <span class="stat-dot"></span>
+                        <span class="stat-item">Типов: <b id="stat-types">0</b></span>
+                    </div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Переключить тему">🌙</button>
+                <div class="header-switcher">
+                    <button class="switcher-btn active" data-tab="warehouse"><span class="switcher-icon">📦</span><span>Склад</span></button>
+                    <button class="switcher-btn" data-tab="catalog"><span class="switcher-icon">📚</span><span>Справочники</span></button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="files-panel">
+        <div class="files-footer">
+            <label class="autosave-switch" title="Сохранять изменения в привязанные файлы сразу после каждого действия">
+                <input type="checkbox" id="chk_autosave" onchange="setAutosave(this.checked)">
+                <span class="toggle-track"></span>
+                <span>Автосохранение</span>
+            </label>
+            <span id="save-flash-global"></span>
+            <div class="spacer"></div>
+            <button class="btn-xl scan" onclick="openScanner()"><span>📷</span> Сканировать QR</button>
+            <button class="btn-xl history" onclick="openHistory()"><span>🕰</span> История</button>
+            <button class="btn-xl qr" onclick="openAllQRLabels()"><span>▦</span> QR-этикетки</button>
+            <button class="btn-xl excel" onclick="openExcelExportDialog()"><span>📊</span> Excel</button>
+            <button class="btn-xl clear" onclick="resetAll()"><span>🗑</span> Очистить всё</button>
+            <button class="btn-xl settings" onclick="openSettings()"><span>⚙️</span> Настройки</button>
+        </div>
+        <div class="fsa-warn hidden" id="fsa_warn">
+            <span>⚠</span>
+            <span>Ваш браузер не поддерживает прямую запись в файл. Открывайте через 📂 и сохраняйте через 💾 — при первом сохранении файл будет скачан.</span>
+        </div>
+    </div>
+
+    <input type="file" id="file-input-warehouse" accept=".json" onchange="loadWarehouseFromInput(this)">
+    <input type="file" id="file-input-catalog" accept=".json" onchange="loadCatalogFromInput(this)">
+
+    <section id="tab-warehouse" class="tab-pane active">
+        <div class="main-layout" id="main-layout">
+            <div class="left-column" id="left-column">
+                <div class="card">
+                    <h2>
+                        <span>Добавить компонент</span>
+                        <button class="collapse-btn" onclick="toggleLeftColumn()" title="Свернуть форму">◀</button>
+                    </h2>
+                    <form id="component-form" autocomplete="off">
+                        <div class="form-group">
+                            <label for="comp-name">Название модели *</label>
+                            <input type="text" id="comp-name" class="form-control" placeholder="Например: BAT54C" required autocomplete="off">
+                            <div class="name-duplicate-hint hidden" id="name-duplicate-hint"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="comp-type">Тип компонента</label>
+                            <select id="comp-type" class="form-control"><option value="">— Не выбрано —</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="comp-qty">Количество (шт) *</label>
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" id="comp-qty" class="form-control" placeholder="12" required oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                        </div>
+                        <div class="form-group">
+                            <label for="comp-cell">Ячейка хранения</label>
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" id="comp-cell" class="form-control" placeholder="1" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                        </div>
+                        <div class="form-group">
+                            <label for="comp-package">Корпус</label>
+                            <select id="comp-package" class="form-control"><option value="">— Не выбрано —</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="comp-desc">Описание</label>
+                            <textarea id="comp-desc" class="form-control" placeholder="Техническая информация..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Добавить компонент</button>
+                    </form>
+                </div>
+            </div>
+            <div class="right-column">
+                <div class="card">
+                    <button class="expand-tab" onclick="toggleLeftColumn()">▶ Показать форму добавления</button>
+                    <div class="toolbar">
+                        <input type="text" id="search-input" class="form-control" placeholder="Поиск по названию, типу, корпусу, ячейке...">
+                        <select id="type-filter" class="form-control"><option value="">Все типы</option></select>
+                        <select id="cell-filter" class="form-control"><option value="">Все ячейки</option></select>
+                    </div>
+                    <div class="filter-info hidden" id="filter-info"></div>
+
+                    <div class="mass-actions" id="mass-actions">
+                        <span class="mass-counter">Выбрано: <b id="mass-count">0</b></span>
+                        <button class="mass-btn" onclick="massEditField('type')">🏷 Изменить тип</button>
+                        <button class="mass-btn" onclick="massEditField('package')">🔧 Изменить корпус</button>
+                        <button class="mass-btn" onclick="massEditField('cell')">📍 Изменить ячейку</button>
+                        <button class="mass-btn danger" onclick="massDelete()">🗑 Удалить</button>
+                        <div class="mass-spacer"></div>
+                        <button class="mass-btn cancel" onclick="clearSelection()">✕ Снять выделение</button>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 36px; text-align: center;">
+                                        <input type="checkbox" class="select-all-checkbox" id="select-all-cb" onchange="toggleSelectAll(this)">
+                                    </th>
+                                    <th class="sortable" onclick="handleSort('name')">Название<span id="sort-name" class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="handleSort('type')" style="width: 130px;">Тип<span id="sort-type" class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="handleSort('qty')" style="width: 170px;">Количество<span id="sort-qty" class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="handleSort('cell')" style="width: 100px;">Ячейка<span id="sort-cell" class="sort-icon"></span></th>
+                                    <th class="sortable" onclick="handleSort('package')" style="width: 120px;">Корпус<span id="sort-package" class="sort-icon"></span></th>
+                                    <th>Описание</th>
+                                    <th style="width: 140px; text-align: center;">Datasheet</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="tab-catalog" class="tab-pane">
+        <div class="catalog-layout">
+            <div class="card">
+                <h2>Типы компонентов <span class="count-badge" id="types-count">0</span></h2>
+                <p class="hint">💡 При переименовании типа все компоненты с этим типом обновятся автоматически.</p>
+                <form id="type-form">
+                    <div class="form-group">
+                        <div class="input-group">
+                            <input type="text" id="new-type-name" class="form-control" placeholder="Например: Оптопара" required>
+                            <button type="submit" class="btn btn-primary" style="padding: 10px 20px;">+</button>
+                        </div>
+                    </div>
+                </form>
+                <ul class="catalog-list" id="type-list"></ul>
+            </div>
+            <div class="card">
+                <h2>Общие корпуса <span class="count-badge" id="common-count">0</span></h2>
+                <p class="hint">💡 Доступны для любого типа. При переименовании обновятся все связанные компоненты.</p>
+                <form id="common-package-form">
+                    <div class="form-group">
+                        <div class="input-group">
+                            <input type="text" id="new-common-package" class="form-control" placeholder="Например: 0805" required>
+                            <button type="submit" class="btn btn-primary" style="padding: 10px 20px;">+</button>
+                        </div>
+                    </div>
+                </form>
+                <ul class="catalog-list" id="common-package-list"></ul>
+            </div>
+        </div>
+        <div class="card">
+            <h2>Корпуса по типам компонентов</h2>
+            <div class="form-group">
+                <label for="catalog-type-select">Выберите тип компонента</label>
+                <select id="catalog-type-select" class="form-control"></select>
+            </div>
+            <form id="typed-package-form">
+                <div class="form-group">
+                    <label>Добавить корпус для выбранного типа</label>
+                    <div class="input-group">
+                        <input type="text" id="new-typed-package" class="form-control" placeholder="Например: LQFP-48" required>
+                        <button type="submit" class="btn btn-primary" style="padding: 10px 20px;">+</button>
+                    </div>
+                </div>
+            </form>
+            <ul class="catalog-list" id="typed-packages-list"></ul>
+        </div>
+    </section>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal" role="dialog" aria-modal="true">
+        <button class="modal-close-btn" id="modal-close-btn" aria-label="Закрыть" type="button">&times;</button>
+        <div class="modal-header">
+            <div class="icon danger" id="modal-icon">⚠️</div>
+            <div class="modal-title-block">
+                <h3 id="modal-title">Подтверждение</h3>
+                <p class="modal-subtitle" id="modal-subtitle"></p>
+            </div>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" id="modal-cancel">Отмена</button>
+            <button class="btn btn-confirm-primary" id="modal-secondary" style="display:none;">Действие</button>
+            <button class="btn btn-confirm-danger" id="modal-confirm">Удалить</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="prompt-overlay">
+    <div class="modal" role="dialog" aria-modal="true">
+        <button class="modal-close-btn" id="prompt-close-btn" aria-label="Закрыть" type="button">&times;</button>
+        <div class="modal-header">
+            <div class="icon info" id="prompt-icon">✏️</div>
+            <div class="modal-title-block">
+                <h3 id="prompt-title">Редактирование</h3>
+            </div>
+        </div>
+        <div class="modal-body">
+            <label id="prompt-label" style="display:block; margin-bottom:6px; font-size:13px; font-weight:500; color:#64748b;">Новое название</label>
+            <input type="text" id="prompt-input" class="form-control">
+            <div id="prompt-error"></div>
+            <div id="prompt-info" style="display:none; margin-top:10px; padding:8px 12px; background:#f0f9ff; color:#075985; border-radius:6px; font-size:13px; border-left:3px solid #0284c7;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" id="prompt-cancel">Отмена</button>
+            <button class="btn btn-confirm-primary" id="prompt-save">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="settings-overlay">
+    <div class="modal" role="dialog" aria-modal="true">
+        <button class="modal-close-btn" id="settings-close-btn" aria-label="Закрыть" type="button">&times;</button>
+        <div class="modal-header">
+            <div class="icon settings">⚙️</div>
+            <div class="modal-title-block">
+                <h3>Настройки</h3>
+                <p class="modal-subtitle show">Файлы данных</p>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div class="storage-card storage-warehouse">
+                <div class="storage-head">
+                    <div class="storage-title">
+                        <div class="icon-badge">📦</div>
+                        <div class="storage-title-text">
+                            <span class="storage-title-main">Склад</span>
+                            <span class="storage-title-file empty" id="warehouse-file-info">файл не привязан</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="storage-body">
+                    <button class="action-btn open" onclick="pickWarehouseFile()"><span>📂</span> Открыть</button>
+                    <button class="action-btn save" onclick="saveWarehouseClicked()"><span>💾</span> Сохранить</button>
+                    <button class="action-btn icon-only danger hidden" id="btn-detach-warehouse" onclick="detachWarehouseFile()" title="Отвязать файл">✕</button>
+                </div>
+            </div>
+
+            <div class="storage-card storage-catalog">
+                <div class="storage-head">
+                    <div class="storage-title">
+                        <div class="icon-badge">📚</div>
+                        <div class="storage-title-text">
+                            <span class="storage-title-main">Справочник</span>
+                            <span class="storage-title-file empty" id="catalog-file-info">файл не привязан</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="storage-body">
+                    <button class="action-btn open" onclick="pickCatalogFile()"><span>📂</span> Открыть</button>
+                    <button class="action-btn save" onclick="saveCatalogClicked()"><span>💾</span> Сохранить</button>
+                    <button class="action-btn icon-only danger hidden" id="btn-detach-catalog" onclick="detachCatalogFile()" title="Отвязать файл">✕</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" id="settings-cancel">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="history-overlay">
+    <div class="modal modal-wide" role="dialog" aria-modal="true">
+        <button class="modal-close-btn" id="history-close-btn" aria-label="Закрыть" type="button">&times;</button>
+        <div class="modal-header">
+            <div class="icon history">🕰</div>
+            <div class="modal-title-block">
+                <h3>История изменений</h3>
+                <p class="modal-subtitle show">Последние 5 состояний склада (старые сверху, новые снизу)</p>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div class="history-list" id="history-list">
+                <div style="text-align:center; padding:30px; color:#94a3b8;">Загрузка...</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" id="history-cancel">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="scan-overlay">
+    <div class="modal" role="dialog" aria-modal="true">
+        <button class="modal-close-btn" id="scan-close-btn" aria-label="Закрыть" type="button">&times;</button>
+        <div class="modal-header">
+            <div class="icon scan">📷</div>
+            <div class="modal-title-block">
+                <h3>Сканирование QR-кода</h3>
+                <p class="modal-subtitle show" id="scan-subtitle">Наведите камеру на QR-этикетку ячейки</p>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div id="scan-video-wrap">
+                <video id="scan-video" playsinline muted></video>
+                <div class="scan-frame"></div>
+            </div>
+            <canvas id="scan-canvas" style="display:none;"></canvas>
+            <div id="scan-result" class="hidden">
+                <div id="scan-result-content"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" id="scan-cancel">Закрыть</button>
+            <button class="btn btn-confirm-primary" id="scan-rescan" style="display:none;" onclick="resetScanner()">↻ Сканировать снова</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="qr-label-overlay">
+    <div class="modal modal-wide" role="dialog" aria-modal="true">
+        <button class="modal-close-btn" id="qr-label-close-btn" aria-label="Закрыть" type="button">&times;</button>
+        <div class="modal-header">
+            <div class="icon qr">▦</div>
+            <div class="modal-title-block">
+                <h3>QR-этикетки ячеек</h3>
+                <p class="modal-subtitle show" id="qr-label-subtitle">Готово к печати</p>
+            </div>
+        </div>
+        <div class="modal-body" style="padding: 12px 20px 20px;">
+            <div class="qr-select-toolbar">
+                <span class="qr-select-title">Выберите ячейки для печати:</span>
+                <button class="qr-select-btn" onclick="selectAllQRCells(true)">✓ Все</button>
+                <button class="qr-select-btn" onclick="selectAllQRCells(false)">✕ Ничего</button>
+            </div>
+            <div class="qr-cell-selector" id="qr-cell-selector"></div>
+            <div class="qr-preview-label">Предпросмотр (<span id="qr-preview-count">0</span>):</div>
+            <div class="qr-grid" id="qr-grid"></div>
+            <div class="qr-empty-msg hidden" id="qr-empty-msg">Не выбрано ни одной ячейки — отметьте хотя бы одну выше.</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" id="qr-label-cancel">Закрыть</button>
+            <button class="btn btn-confirm-primary" id="qr-print-btn" onclick="printQRLabels()">🖨 Печать (<span id="qr-print-count">0</span>)</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="mass-edit-overlay">
+    <div class="modal" role="dialog" aria-modal="true">
+        <button class="modal-close-btn" id="mass-edit-close-btn" aria-label="Закрыть" type="button">&times;</button>
+        <div class="modal-header">
+            <div class="icon info">✏️</div>
+            <div class="modal-title-block">
+                <h3 id="mass-edit-title">Изменить</h3>
+                <p class="modal-subtitle show" id="mass-edit-subtitle"></p>
+            </div>
+        </div>
+        <div class="modal-body">
+            <label id="mass-edit-label" style="display:block; margin-bottom:6px; font-size:13px; font-weight:500; color:#64748b;">Новое значение</label>
+            <div id="mass-edit-content"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" id="mass-edit-cancel">Отмена</button>
+            <button class="btn btn-confirm-primary" id="mass-edit-apply">Применить</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="excel-overlay">
+    <div class="modal" role="dialog" aria-modal="true">
+        <button class="modal-close-btn" id="excel-close-btn" aria-label="Закрыть" type="button">&times;</button>
+        <div class="modal-header">
+            <div class="icon excel">📊</div>
+            <div class="modal-title-block"><h3>Экспорт в Excel</h3></div>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom:12px;">Что выгрузить в файл?</div>
+            <label class="export-option">
+                <input type="radio" name="excel-scope" value="all" checked>
+                <span>Весь склад <strong>(<span id="excel-all-count">0</span> поз.)</strong></span>
+            </label>
+            <label class="export-option" id="excel-filtered-option">
+                <input type="radio" name="excel-scope" value="filtered">
+                <span>Только то, что показано в таблице <strong>(<span id="excel-filtered-count">0</span> поз.)</strong></span>
+            </label>
+            <label class="export-option">
+                <input type="checkbox" id="excel-include-catalog">
+                <span>Добавить лист со справочником</span>
+            </label>
+            <div style="margin-top:14px; font-size:12px; color:#64748b;">
+                Файл: <span id="excel-filename" style="font-family:monospace; color:#1e293b; font-weight:600;"></span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" id="excel-cancel">Отмена</button>
+            <button class="btn btn-confirm-success" id="excel-confirm">📊 Скачать</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const APP_VERSION = 'v8.9';
+const LS_KEY_WAREHOUSE = 'wh_warehouse_v89';
+const LS_KEY_CATALOG   = 'wh_catalog_v89';
+const AUTOSAVE_KEY     = 'wh_autosave_v89';
+const THEME_KEY        = 'wh_theme';
+const LEFT_COLLAPSED_KEY = 'wh_left_collapsed';
+const IDB_NAME         = 'wh_db_v89';
+
+let components = [];
+let componentTypes = [];
+let commonPackages = [];
+let packagesByType = {};
+
+let currentSortField = '';
+let isSortAsc = true;
+let selectedIndices = new Set();
+
+let qrAllCells = [];
+let qrSelectedCells = new Set();
+
+let scanStream = null;
+let scanAnimFrame = null;
+let scannerActive = false;
+
+const form = document.getElementById('component-form');
+const typeForm = document.getElementById('type-form');
+const commonPackageForm = document.getElementById('common-package-form');
+const typedPackageForm = document.getElementById('typed-package-form');
+
+const tableBody = document.getElementById('table-body');
+const searchInput = document.getElementById('search-input');
+const cellFilter = document.getElementById('cell-filter');
+const typeFilter = document.getElementById('type-filter');
+
+const compNameInput = document.getElementById('comp-name');
+const compTypeSelect = document.getElementById('comp-type');
+const compPackageSelect = document.getElementById('comp-package');
+const nameDuplicateHint = document.getElementById('name-duplicate-hint');
+
+const statPositions = document.getElementById('stat-positions');
+const statQty = document.getElementById('stat-qty');
+const statPackages = document.getElementById('stat-packages');
+const statTypes = document.getElementById('stat-types');
+
+const statusWarehouse = document.getElementById('warehouse-file-info');
+const statusCatalog = document.getElementById('catalog-file-info');
+const filterInfo = document.getElementById('filter-info');
+
+const typeListEl = document.getElementById('type-list');
+const commonPackageListEl = document.getElementById('common-package-list');
+const typedPackagesListEl = document.getElementById('typed-packages-list');
+const catalogTypeSelect = document.getElementById('catalog-type-select');
+const typesCountEl = document.getElementById('types-count');
+const commonCountEl = document.getElementById('common-count');
+
+const btnDetachWarehouse = document.getElementById('btn-detach-warehouse');
+const btnDetachCatalog = document.getElementById('btn-detach-catalog');
+const fsaWarn = document.getElementById('fsa_warn');
+const chkAutosave = document.getElementById('chk_autosave');
+
+const massActions = document.getElementById('mass-actions');
+const massCount = document.getElementById('mass-count');
+const selectAllCb = document.getElementById('select-all-cb');
+
+const modalOverlay = document.getElementById('modal-overlay');
+const modalTitle = document.getElementById('modal-title');
+const modalSubtitle = document.getElementById('modal-subtitle');
+const modalBody = document.getElementById('modal-body');
+const modalIcon = document.getElementById('modal-icon');
+const modalCancel = document.getElementById('modal-cancel');
+const modalConfirm = document.getElementById('modal-confirm');
+const modalSecondary = document.getElementById('modal-secondary');
+const modalCloseBtn = document.getElementById('modal-close-btn');
+let modalCallback = null;
+let modalSecondaryCallback = null;
+
+const promptOverlay = document.getElementById('prompt-overlay');
+const promptTitle = document.getElementById('prompt-title');
+const promptLabel = document.getElementById('prompt-label');
+const promptInput = document.getElementById('prompt-input');
+const promptError = document.getElementById('prompt-error');
+const promptInfo = document.getElementById('prompt-info');
+const promptCancel = document.getElementById('prompt-cancel');
+const promptSave = document.getElementById('prompt-save');
+const promptCloseBtn = document.getElementById('prompt-close-btn');
+let promptSaveCallback = null;
+
+const excelOverlay = document.getElementById('excel-overlay');
+const excelCancel = document.getElementById('excel-cancel');
+const excelConfirm = document.getElementById('excel-confirm');
+const excelCloseBtn = document.getElementById('excel-close-btn');
+const excelAllCount = document.getElementById('excel-all-count');
+const excelFilteredCount = document.getElementById('excel-filtered-count');
+const excelFilteredOption = document.getElementById('excel-filtered-option');
+const excelIncludeCatalog = document.getElementById('excel-include-catalog');
+const excelFilename = document.getElementById('excel-filename');
+
+function applyTheme(theme) {
+    if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.getElementById('theme-toggle').textContent = '☀️';
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.getElementById('theme-toggle').textContent = '🌙';
+    }
+    try { localStorage.setItem(THEME_KEY, theme); } catch(e) {}
+}
+function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+function loadSavedTheme() {
+    try {
+        const saved = localStorage.getItem(THEME_KEY);
+        if (saved === 'dark') applyTheme('dark');
+    } catch(e) {}
+}
+
+function toggleLeftColumn() {
+    const layout = document.getElementById('main-layout');
+    layout.classList.toggle('collapsed');
+    const collapsed = layout.classList.contains('collapsed');
+    try { localStorage.setItem(LEFT_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch(e) {}
+}
+function loadLeftColumnState() {
+    try {
+        if (localStorage.getItem(LEFT_COLLAPSED_KEY) === '1') {
+            document.getElementById('main-layout').classList.add('collapsed');
+        }
+    } catch(e) {}
+}
+
+const scanVideo = document.getElementById('scan-video');
+const scanCanvas = document.getElementById('scan-canvas');
+const scanCtx = scanCanvas.getContext('2d');
+
+async function openScanner() {
+    if (typeof jsQR === 'undefined') {
+        alert('Библиотека сканирования QR не загрузилась. Проверьте интернет.');
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Ваш браузер не поддерживает доступ к камере.');
+        return;
+    }
+
+    document.getElementById('scan-overlay').classList.add('active');
+    document.getElementById('scan-video-wrap').style.display = '';
+    document.getElementById('scan-result').classList.add('hidden');
+    document.getElementById('scan-rescan').style.display = 'none';
+    document.getElementById('scan-subtitle').textContent = 'Наведите камеру на QR-этикетку ячейки';
+
+    try {
+        scanStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+        });
+        scanVideo.srcObject = scanStream;
+        await scanVideo.play();
+        scannerActive = true;
+        tickScan();
+    } catch(e) {
+        console.error(e);
+        let msg = 'Не удалось получить доступ к камере.';
+        if (e.name === 'NotAllowedError') msg = 'Доступ к камере запрещён. Разрешите камеру в браузере и попробуйте снова.';
+        else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') msg = 'Камера не найдена на этом устройстве.';
+        else if (e.name === 'NotReadableError') msg = 'Камера занята другим приложением.';
+        document.getElementById('scan-video-wrap').style.display = 'none';
+        document.getElementById('scan-result').classList.remove('hidden');
+        document.getElementById('scan-result-content').innerHTML =
+            '<div style="padding:30px 20px; text-align:center; color:#dc2626; background:#fee2e2; border-radius:8px; border-left:3px solid #dc2626;">' +
+            escapeHtml(msg) + '</div>';
+        document.getElementById('scan-rescan').style.display = 'inline-flex';
+    }
+}
+
+function tickScan() {
+    if (!scannerActive) return;
+    if (scanVideo.readyState === scanVideo.HAVE_ENOUGH_DATA) {
+        const w = scanVideo.videoWidth;
+        const h = scanVideo.videoHeight;
+        if (w && h) {
+            scanCanvas.width = w;
+            scanCanvas.height = h;
+            scanCtx.drawImage(scanVideo, 0, 0, w, h);
+            try {
+                const imgData = scanCtx.getImageData(0, 0, w, h);
+                const code = jsQR(imgData.data, w, h, { inversionAttempts: 'dontInvert' });
+                if (code && code.data) {
+                    onQRDetected(code.data);
+                    return;
+                }
+            } catch(e) {
+                console.warn('scan decode error:', e);
+            }
+        }
+    }
+    scanAnimFrame = requestAnimationFrame(tickScan);
+}
+
+function onQRDetected(cellValue) {
+    scannerActive = false;
+    if (scanAnimFrame) cancelAnimationFrame(scanAnimFrame);
+    stopScanStream();
+    showCellFromQR(String(cellValue).trim());
+}
+
+function stopScanStream() {
+    if (scanStream) {
+        scanStream.getTracks().forEach(t => t.stop());
+        scanStream = null;
+    }
+    scanVideo.srcObject = null;
+}
+
+function showCellFromQR(cellValue) {
+    const items = components.filter(c => c.cell && String(c.cell).trim() === cellValue);
+    document.getElementById('scan-video-wrap').style.display = 'none';
+    document.getElementById('scan-result').classList.remove('hidden');
+    document.getElementById('scan-rescan').style.display = 'inline-flex';
+
+    document.getElementById('scan-subtitle').textContent =
+        'Ячейка: ' + cellValue + (items.length > 0 ? ' · ' + items.length + ' поз.' : '');
+
+    let html = '<div class="scan-cell-title">📍 Ячейка <strong>' + escapeHtml(cellValue) + '</strong>' +
+        (items.length > 0 ? ' — <strong>' + items.length + '</strong> поз.' : '') + '</div>';
+
+    if (items.length === 0) {
+        html += '<div style="padding:24px 20px; text-align:center; color:var(--text-muted); font-style:italic; background:#f8fafc; border-radius:8px; border:1px dashed var(--border-color);">В этой ячейке нет компонентов.</div>';
+    } else {
+        html += '<div class="scan-cell-items">';
+        items.forEach(c => {
+            html += '<div class="scan-cell-item">' +
+                '<div class="scan-cell-item-name">' + escapeHtml(c.name) + '</div>' +
+                '<div class="scan-cell-item-meta">' +
+                    (c.type ? '<span class="type-badge">' + escapeHtml(c.type) + '</span>' : '') +
+                    '<span class="qty-badge">' + c.qty + ' шт.</span>' +
+                    (c.package ? '<span class="package-badge">' + escapeHtml(c.package) + '</span>' : '') +
+                '</div>' +
+                (c.desc ? '<div class="scan-cell-item-desc">' + escapeHtml(c.desc) + '</div>' : '') +
+            '</div>';
+        });
+        html += '</div>';
+    }
+    document.getElementById('scan-result-content').innerHTML = html;
+}
+
+function resetScanner() {
+    stopScanStream();
+    scannerActive = false;
+    if (scanAnimFrame) cancelAnimationFrame(scanAnimFrame);
+    document.getElementById('scan-result').classList.add('hidden');
+    document.getElementById('scan-video-wrap').style.display = '';
+    document.getElementById('scan-rescan').style.display = 'none';
+    document.getElementById('scan-subtitle').textContent = 'Наведите камеру на QR-этикетку ячейки';
+    openScanner();
+}
+
+function closeScanner() {
+    stopScanStream();
+    scannerActive = false;
+    if (scanAnimFrame) cancelAnimationFrame(scanAnimFrame);
+    document.getElementById('scan-overlay').classList.remove('active');
+}
+
+function openSettings() {
+    document.getElementById('settings-overlay').classList.add('active');
+}
+function closeSettings() {
+    document.getElementById('settings-overlay').classList.remove('active');
+}
+
+const HAS_FSA      = (typeof window !== 'undefined') && ('showSaveFilePicker' in window);
+const HAS_FSA_OPEN = (typeof window !== 'undefined') && ('showOpenFilePicker' in window);
+
+let warehouseFileHandle = null;
+let catalogFileHandle   = null;
+
+function idbOpen() {
+    return new Promise(function(resolve, reject) {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = function() {
+            if (!req.result.objectStoreNames.contains('kv')) req.result.createObjectStore('kv');
+        };
+        req.onsuccess = function() { resolve(req.result); };
+        req.onerror   = function() { reject(req.error); };
+    });
+}
+function idbGet(key) {
+    return idbOpen().then(function(db){
+        return new Promise(function(resolve, reject){
+            const tx = db.transaction('kv','readonly').objectStore('kv').get(key);
+            tx.onsuccess = function(){ resolve(tx.result); };
+            tx.onerror   = function(){ reject(tx.error); };
+        });
+    });
+}
+function idbSet(key, value) {
+    return idbOpen().then(function(db){
+        return new Promise(function(resolve, reject){
+            const tx = db.transaction('kv','readwrite').objectStore('kv').put(value, key);
+            tx.onsuccess = function(){ resolve(); };
+            tx.onerror   = function(){ reject(tx.error); };
+        });
+    });
+}
+function idbDel(key) {
+    return idbOpen().then(function(db){
+        return new Promise(function(resolve){
+            const tx = db.transaction('kv','readwrite');
+            tx.objectStore('kv').delete(key);
+            tx.oncomplete = function(){ resolve(); };
+        });
+    });
+}
+
+const SNAPSHOT_KEY = 'history_snapshots';
+const MAX_SNAPSHOTS = 5;
+
+async function saveSnapshot(snapshot) {
+    try {
+        const arr = (await idbGet(SNAPSHOT_KEY)) || [];
+        arr.unshift(snapshot);
+        while (arr.length > MAX_SNAPSHOTS) arr.pop();
+        await idbSet(SNAPSHOT_KEY, arr);
+    } catch(e) { console.warn('snapshot error:', e); }
+}
+
+function snap(reason) {
+    const snapshot = {
+        ts: Date.now(),
+        reason: reason || 'change',
+        components: JSON.parse(JSON.stringify(components)),
+        componentTypes: JSON.parse(JSON.stringify(componentTypes)),
+        commonPackages: JSON.parse(JSON.stringify(commonPackages)),
+        packagesByType: JSON.parse(JSON.stringify(packagesByType))
+    };
+    saveSnapshot(snapshot);
+}
+
+async function getSnapshots() {
+    try { return (await idbGet(SNAPSHOT_KEY)) || []; }
+    catch(e) { return []; }
+}
+
+const REASON_LABELS = {
+    'change': 'Изменение', 'add_component': 'Добавление компонента',
+    'add_duplicate': 'Добавление дубликата', 'qty_increase': 'Увеличение количества',
+    'qty_change': 'Изменение количества', 'inline_edit': 'Редактирование в таблице',
+    'mass_delete': 'Массовое удаление', 'mass_edit_type': 'Массовое изменение типа',
+    'mass_edit_package': 'Массовое изменение корпуса', 'mass_edit_cell': 'Массовое изменение ячейки',
+    'add_type': 'Добавление типа', 'add_pkg': 'Добавление корпуса',
+    'add_typed_pkg': 'Добавление корпуса к типу', 'edit_type': 'Переименование типа',
+    'edit_pkg': 'Переименование корпуса', 'edit_typed_pkg': 'Переименование корпуса типа',
+    'delete_type': 'Удаление типа', 'delete_pkg': 'Удаление корпуса',
+    'delete_typed_pkg': 'Удаление корпуса типа',
+    'before_reset': 'Перед очисткой', 'before_restore': 'Перед восстановлением'
+};
+
+function translateReason(reason) {
+    if (!reason) return 'Изменение';
+    return REASON_LABELS[reason] || reason.replace(/_/g, ' ');
+}
+
+async function openHistory() {
+    const list = document.getElementById('history-list');
+    list.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;">Загрузка...</div>';
+    document.getElementById('history-overlay').classList.add('active');
+
+    const arr = await getSnapshots();
+    if (arr.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:40px 20px; color:#94a3b8;"><div style="font-size:48px; margin-bottom:12px;">🕰</div><div>История пуста. Появится после первых изменений.</div></div>';
+    } else {
+        const ordered = arr.slice().reverse();
+        list.innerHTML = ordered.map((s, i) => {
+            const origIdx = arr.length - 1 - i;
+            const d = new Date(s.ts);
+            const dt = d.toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+            return `<div class="history-item">
+                <div class="history-item-info">
+                    <div class="history-item-time">${dt}</div>
+                    <div class="history-item-meta">${escapeHtml(translateReason(s.reason))} · ${(s.components||[]).length} поз. · ${(s.componentTypes||[]).length} тип.</div>
+                </div>
+                <button class="btn btn-confirm-primary" onclick="restoreSnapshot(${origIdx})">↩ Восстановить</button>
+            </div>`;
+        }).join('');
+    }
+}
+
+async function restoreSnapshot(idx) {
+    const arr = await getSnapshots();
+    if (!arr[idx]) return;
+    const s = arr[idx];
+    showConfirm({
+        title: 'Восстановить состояние?',
+        subtitle: 'Текущие данные будут заменены',
+        bodyHtml: `<div class="component-details">
+            <div class="component-detail-row"><span class="component-detail-label">Дата</span><span class="component-detail-value">${new Date(s.ts).toLocaleString('ru-RU')}</span></div>
+            <div class="component-detail-row"><span class="component-detail-label">Действие</span><span class="component-detail-value">${escapeHtml(translateReason(s.reason))}</span></div>
+            <div class="component-detail-row"><span class="component-detail-label">Позиций</span><span class="component-detail-value strong">${(s.components||[]).length}</span></div>
+            <div class="component-detail-row"><span class="component-detail-label">Типов</span><span class="component-detail-value">${(s.componentTypes||[]).length}</span></div>
+        </div>
+        <div class="modal-warning">⚠️ Текущее состояние будет заменено на выбранный снимок.</div>`,
+        confirmText: '↩ Восстановить',
+        confirmClass: 'btn-primary',
+        icon: '🕰',
+        iconClass: 'info',
+        onConfirm: () => {
+            components = JSON.parse(JSON.stringify(s.components || []));
+            componentTypes = JSON.parse(JSON.stringify(s.componentTypes || []));
+            commonPackages = JSON.parse(JSON.stringify(s.commonPackages || []));
+            packagesByType = JSON.parse(JSON.stringify(s.packagesByType || {}));
+            selectedIndices.clear();
+            persistWarehouse();
+            persistCatalog();
+            refreshUI();
+            hideHistory();
+        }
+    });
+}
+function hideHistory() { document.getElementById('history-overlay').classList.remove('active'); }
+
+function isAutosave() {
+    try { return localStorage.getItem(AUTOSAVE_KEY) === '1'; } catch(e) { return false; }
+}
+function setAutosave(v) {
+    try { localStorage.setItem(AUTOSAVE_KEY, v ? '1' : '0'); } catch(e) {}
+    if (chkAutosave) chkAutosave.checked = v;
+}
+
+function flashSaved(which) {
+    const global = document.getElementById('save-flash-global');
+    if (global) {
+        global.textContent = which === 'warehouse' ? '✓ Склад сохранён' : '✓ Справочник сохранён';
+        global.classList.add('show');
+        clearTimeout(global._t);
+        global._t = setTimeout(function(){ global.classList.remove('show'); }, 1800);
+    }
+}
+
+function checkNameDuplicate() {
+    if (!compNameInput || !nameDuplicateHint) return;
+    const raw = compNameInput.value.trim();
+    if (raw.length < 2) {
+        compNameInput.classList.remove('duplicate');
+        nameDuplicateHint.classList.add('hidden');
+        nameDuplicateHint.innerHTML = '';
+        return;
+    }
+    const lower = raw.toLowerCase();
+    const found = components.find(c => (c.name || '').toLowerCase() === lower);
+    if (!found) {
+        compNameInput.classList.remove('duplicate');
+        nameDuplicateHint.classList.add('hidden');
+        nameDuplicateHint.innerHTML = '';
+        return;
+    }
+    compNameInput.classList.add('duplicate');
+    const details = [`<strong>${escapeHtml(found.name)}</strong> уже есть`, `<b>${found.qty}</b> шт.`];
+    if (found.cell) details.push(`ячейка <b>${escapeHtml(found.cell)}</b>`);
+    if (found.package) details.push(`корпус <b>${escapeHtml(found.package)}</b>`);
+    nameDuplicateHint.innerHTML = `⚠ ${details.join(' · ')}<span class="hint-sub">При отправке можно прибавить количество или создать отдельную позицию.</span>`;
+    nameDuplicateHint.classList.remove('hidden');
+}
+
+function updateMassBar() {
+    const cnt = selectedIndices.size;
+    if (massCount) massCount.textContent = cnt;
+    if (massActions) {
+        if (cnt > 0) massActions.classList.add('show');
+        else massActions.classList.remove('show');
+    }
+    const visibleRows = tableBody.querySelectorAll('.row-checkbox');
+    const visibleChecked = tableBody.querySelectorAll('.row-checkbox:checked');
+    if (selectAllCb) {
+        if (visibleRows.length > 0 && visibleRows.length === visibleChecked.length) {
+            selectAllCb.checked = true;
+            selectAllCb.indeterminate = false;
+        } else if (visibleChecked.length > 0) {
+            selectAllCb.checked = false;
+            selectAllCb.indeterminate = true;
+        } else {
+            selectAllCb.checked = false;
+            selectAllCb.indeterminate = false;
+        }
+    }
+}
+function toggleSelectAll(cb) {
+    const boxes = tableBody.querySelectorAll('.row-checkbox');
+    if (cb.checked) {
+        boxes.forEach(box => {
+            box.checked = true;
+            selectedIndices.add(parseInt(box.dataset.index));
+        });
+    } else {
+        boxes.forEach(box => {
+            box.checked = false;
+            selectedIndices.delete(parseInt(box.dataset.index));
+        });
+    }
+    updateMassBar();
+}
+function toggleRow(index, cb) {
+    if (cb.checked) selectedIndices.add(index);
+    else selectedIndices.delete(index);
+    updateMassBar();
+}
+function clearSelection() {
+    selectedIndices.clear();
+    tableBody.querySelectorAll('.row-checkbox').forEach(cb => { cb.checked = false; });
+    if (selectAllCb) {
+        selectAllCb.checked = false;
+        selectAllCb.indeterminate = false;
+    }
+    updateMassBar();
+}
+function massDelete() {
+    const indices = Array.from(selectedIndices).sort((a,b) => b - a);
+    if (indices.length === 0) return;
+    showConfirm({
+        title: 'Удалить выбранные?',
+        subtitle: 'Это действие нельзя отменить',
+        bodyHtml: `<div class="component-details">
+            <div class="component-detail-row"><span class="component-detail-label">Позиций</span><span class="component-detail-value strong">${indices.length}</span></div>
+        </div>
+        <div class="modal-warning">⚠️ Все выбранные компоненты будут удалены из склада.</div>`,
+        confirmText: '🗑 Удалить',
+        confirmClass: 'btn-danger',
+        icon: '🗑',
+        iconClass: 'danger',
+        onConfirm: () => {
+            snap('mass_delete');
+            indices.forEach(i => components.splice(i, 1));
+            selectedIndices.clear();
+            persistWarehouse();
+            refreshUI();
+        }
+    });
+}
+
+let massEditFieldName = null;
+function massEditField(field) {
+    if (selectedIndices.size === 0) return;
+    massEditFieldName = field;
+    const fieldNames = {
+        type: { title: 'Изменить тип', label: 'Выберите тип' },
+        package: { title: 'Изменить корпус', label: 'Выберите корпус' },
+        cell: { title: 'Изменить ячейку', label: 'Новая ячейка' }
+    };
+    const info = fieldNames[field];
+    document.getElementById('mass-edit-title').textContent = info.title;
+    document.getElementById('mass-edit-label').textContent = info.label;
+    document.getElementById('mass-edit-subtitle').textContent = `Будет применено к ${selectedIndices.size} поз.`;
+
+    const content = document.getElementById('mass-edit-content');
+    if (field === 'cell') {
+        content.innerHTML = '<input type="text" id="mass-edit-input" class="form-control" inputmode="numeric" pattern="[0-9]*" placeholder="Например: 5" oninput="this.value = this.value.replace(/[^0-9]/g, \'\')">';
+        setTimeout(() => document.getElementById('mass-edit-input').focus(), 50);
+    } else {
+        const options = field === 'type' ? [...componentTypes].sort() : getAllAvailablePackagesSorted();
+        let opts = '<option value="">— Не выбрано —</option>';
+        options.forEach(o => opts += `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`);
+        content.innerHTML = `<select id="mass-edit-input" class="form-control">${opts}</select>`;
+    }
+    document.getElementById('mass-edit-overlay').classList.add('active');
+}
+function getAllAvailablePackagesSorted() {
+    const set = new Set(commonPackages);
+    Object.values(packagesByType).forEach(arr => arr.forEach(p => set.add(p)));
+    return Array.from(set).sort();
+}
+function hideMassEdit() {
+    document.getElementById('mass-edit-overlay').classList.remove('active');
+    massEditFieldName = null;
+}
+function applyMassEdit() {
+    const el = document.getElementById('mass-edit-input');
+    if (!el) return;
+    const value = el.value.trim();
+    if (!massEditFieldName) return;
+    snap('mass_edit_' + massEditFieldName);
+    const indices = Array.from(selectedIndices);
+    indices.forEach(i => {
+        if (components[i]) components[i][massEditFieldName] = value;
+    });
+    persistWarehouse();
+    hideMassEdit();
+    clearSelection();
+    refreshUI();
+}
+
+function openAllQRLabels() {
+    const cells = [...new Set(components.map(c => c.cell).filter(c => c && String(c).trim()))]
+        .sort((a,b) => Number(a) - Number(b) || a.localeCompare(b));
+
+    if (cells.length === 0) {
+        showConfirm({
+            title: 'Нет ячеек',
+            bodyHtml: 'В складе нет компонентов с указанной ячейкой.',
+            confirmText: 'Понятно', confirmClass: 'btn-primary',
+            icon: 'ℹ️', iconClass: 'info', onConfirm: () => {}
+        });
+        return;
+    }
+    if (typeof QRCode === 'undefined') {
+        alert('Библиотека QR-кодов не загрузилась. Проверьте интернет.');
+        return;
+    }
+
+    qrAllCells = cells.slice();
+    qrSelectedCells = new Set(cells);
+
+    renderQRCellSelector();
+    updateQRLabelsGrid();
+
+    document.getElementById('qr-label-overlay').classList.add('active');
+}
+
+function renderQRCellSelector() {
+    const container = document.getElementById('qr-cell-selector');
+    container.innerHTML = '';
+    qrAllCells.forEach(cell => {
+        const isSelected = qrSelectedCells.has(cell);
+        const chip = document.createElement('label');
+        chip.className = 'qr-cell-chip' + (isSelected ? ' selected' : '');
+        chip.innerHTML = `
+            <span class="qr-check-mark">✓</span>
+            <span>${escapeHtml(cell)}</span>
+            <input type="checkbox" ${isSelected ? 'checked' : ''}>
+        `;
+        const cb = chip.querySelector('input');
+        cb.addEventListener('change', () => {
+            if (cb.checked) qrSelectedCells.add(cell);
+            else qrSelectedCells.delete(cell);
+            chip.classList.toggle('selected', cb.checked);
+            updateQRLabelsGrid();
+        });
+        container.appendChild(chip);
+    });
+}
+
+function selectAllQRCells(select) {
+    if (select) qrAllCells.forEach(c => qrSelectedCells.add(c));
+    else qrSelectedCells.clear();
+    document.querySelectorAll('.qr-cell-chip').forEach((chip, i) => {
+        const cell = qrAllCells[i];
+        const cb = chip.querySelector('input');
+        const isSel = qrSelectedCells.has(cell);
+        cb.checked = isSel;
+        chip.classList.toggle('selected', isSel);
+    });
+    updateQRLabelsGrid();
+}
+
+function updateQRLabelsGrid() {
+    const grid = document.getElementById('qr-grid');
+    const emptyMsg = document.getElementById('qr-empty-msg');
+    const previewCount = document.getElementById('qr-preview-count');
+    const printCount = document.getElementById('qr-print-count');
+    const printBtn = document.getElementById('qr-print-btn');
+    const subtitle = document.getElementById('qr-label-subtitle');
+
+    grid.innerHTML = '';
+    const selected = qrAllCells.filter(c => qrSelectedCells.has(c));
+
+    previewCount.textContent = selected.length;
+    printCount.textContent = selected.length;
+    subtitle.textContent = `Выбрано ${selected.length} из ${qrAllCells.length} этикеток`;
+
+    if (selected.length === 0) {
+        grid.style.display = 'none';
+        emptyMsg.classList.remove('hidden');
+        printBtn.disabled = true;
+        printBtn.style.opacity = '0.5';
+        printBtn.style.cursor = 'not-allowed';
+        return;
+    }
+
+    grid.style.display = '';
+    emptyMsg.classList.add('hidden');
+    printBtn.disabled = false;
+    printBtn.style.opacity = '1';
+    printBtn.style.cursor = '';
+
+    selected.forEach(cell => {
+        const label = document.createElement('div');
+        label.className = 'qr-label';
+        const qrDiv = document.createElement('div');
+        const caption = document.createElement('div');
+        caption.className = 'qr-caption';
+        caption.textContent = cell;
+        label.appendChild(qrDiv);
+        label.appendChild(caption);
+        grid.appendChild(label);
+
+        new QRCode(qrDiv, {
+            text: String(cell),
+            width: 140, height: 140,
+            colorDark: '#000000', colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    });
+}
+
+function hideQRLabels() { document.getElementById('qr-label-overlay').classList.remove('active'); }
+function printQRLabels() {
+    if (!qrSelectedCells || qrSelectedCells.size === 0) {
+        alert('Выберите хотя бы одну ячейку для печати.');
+        return;
+    }
+    document.body.classList.add('printing');
+    setTimeout(() => {
+        window.print();
+        setTimeout(() => document.body.classList.remove('printing'), 300);
+    }, 100);
+}
+
+function warehouseContent() { return JSON.stringify({ components }, null, 4); }
+function catalogContent() { return JSON.stringify({ componentTypes, commonPackages, packagesByType }, null, 4); }
+
+function showTypeError(title, html) {
+    showConfirm({
+        title: title, bodyHtml: html,
+        confirmText: 'Понятно', confirmClass: 'btn-primary',
+        icon: '⚠️', iconClass: 'warn', onConfirm: () => {}
+    });
+}
+function classifyWarehouseFile(data) {
+    if (Array.isArray(data)) return 'array';
+    if (!data || typeof data !== 'object') return false;
+    if (!Array.isArray(data.components)) return false;
+    const hasCatalog = Array.isArray(data.componentTypes) || Array.isArray(data.commonPackages) || (data.packagesByType && typeof data.packagesByType === 'object') || Array.isArray(data.packages);
+    return hasCatalog ? 'mixed' : 'object';
+}
+function classifyCatalogFile(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    if (Array.isArray(data.components)) return 'mixed';
+    const hasAny = Array.isArray(data.componentTypes) || Array.isArray(data.commonPackages) || (data.packagesByType && typeof data.packagesByType === 'object') || Array.isArray(data.packages);
+    return hasAny ? 'object' : false;
+}
+
+async function pickWarehouseFile() {
+    if (HAS_FSA_OPEN) {
+        try {
+            const [handle] = await window.showOpenFilePicker({
+                types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+                multiple: false, excludeAcceptAllOption: false
+            });
+            const file = await handle.getFile();
+            const text = await file.text();
+            let data;
+            try { data = JSON.parse(text); }
+            catch (err) {
+                showTypeError('Не удалось прочесть файл', `Файл <strong>${escapeHtml(file.name)}</strong> не является корректным JSON.<br><br><span style="color:#b45309;">${escapeHtml(err.message)}</span>`);
+                return;
+            }
+            const kind = classifyWarehouseFile(data);
+            if (kind === 'mixed') { showTypeError('Это не файл склада', `Файл содержит одновременно склад и справочник.`); return; }
+            if (!kind) { showTypeError('Это не файл склада', `Файл не содержит массива <span class="highlight">components</span>.`); return; }
+            try {
+                const perm = await handle.requestPermission({ mode: 'readwrite' });
+                if (perm === 'granted') { warehouseFileHandle = handle; await idbSet('wh_warehouse_handle', handle); }
+            } catch(e) {}
+            applyWarehouseData(data, kind, file.name);
+            updateWarehouseUI();
+        } catch(e) {
+            if (e.name !== 'AbortError') { document.getElementById('file-input-warehouse').click(); }
+        }
+    } else {
+        document.getElementById('file-input-warehouse').click();
+    }
+}
+function applyWarehouseData(data, kind, filename) {
+    components = (kind === 'array') ? data : data.components;
+    statusWarehouse.textContent = filename;
+    statusWarehouse.classList.remove('empty');
+    statusWarehouse.classList.add('loaded');
+    try { localStorage.setItem(LS_KEY_WAREHOUSE, JSON.stringify({ components })); } catch(e) {}
+    clearSelection();
+    refreshUI();
+    checkNameDuplicate();
+}
+function loadWarehouseFromInput(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        let data;
+        try { data = JSON.parse(e.target.result); }
+        catch (err) { showTypeError('Не удалось прочесть файл', `Файл содержит синтаксическую ошибку.`); input.value = ''; return; }
+        const kind = classifyWarehouseFile(data);
+        if (!kind) { showTypeError('Это не файл склада', `Файл не содержит массива <span class="highlight">components</span>.`); input.value = ''; return; }
+        if (kind === 'mixed') { showTypeError('Это не файл склада', `Файл содержит и склад, и справочник.`); input.value = ''; return; }
+        applyWarehouseData(data, kind, file.name);
+        input.value = '';
+    };
+    reader.onerror = function() { alert("Ошибка чтения файла."); input.value = ''; };
+    reader.readAsText(file);
+}
+
+async function pickCatalogFile() {
+    if (HAS_FSA_OPEN) {
+        try {
+            const [handle] = await window.showOpenFilePicker({
+                types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+                multiple: false, excludeAcceptAllOption: false
+            });
+            const file = await handle.getFile();
+            const text = await file.text();
+            let data;
+            try { data = JSON.parse(text); }
+            catch (err) { showTypeError('Не удалось прочесть файл', `Файл не является корректным JSON.`); return; }
+            const kind = classifyCatalogFile(data);
+            if (!kind) { showTypeError('Это не файл справочника', `Файл не содержит полей справочника.`); return; }
+            if (kind === 'mixed') { showTypeError('Это не файл справочника', `Файл содержит массив <span class="highlight">components</span> — это склад.`); return; }
+            try {
+                const perm = await handle.requestPermission({ mode: 'readwrite' });
+                if (perm === 'granted') { catalogFileHandle = handle; await idbSet('wh_catalog_handle', handle); }
+            } catch(e) {}
+            applyCatalogFileData(data, file.name);
+            updateCatalogUI();
+        } catch(e) {
+            if (e.name !== 'AbortError') { document.getElementById('file-input-catalog').click(); }
+        }
+    } else {
+        document.getElementById('file-input-catalog').click();
+    }
+}
+function applyCatalogFileData(data, filename) {
+    applyCatalogData(data);
+    statusCatalog.textContent = filename;
+    statusCatalog.classList.remove('empty');
+    statusCatalog.classList.add('loaded');
+    try { localStorage.setItem(LS_KEY_CATALOG, JSON.stringify({ componentTypes, commonPackages, packagesByType })); } catch(e) {}
+    refreshUI();
+}
+function loadCatalogFromInput(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        let data;
+        try { data = JSON.parse(e.target.result); }
+        catch (err) { showTypeError('Не удалось прочесть файл', `Файл содержит синтаксическую ошибку.`); input.value = ''; return; }
+        const kind = classifyCatalogFile(data);
+        if (!kind) { showTypeError('Это не файл справочника', `Файл не содержит полей справочника.`); input.value = ''; return; }
+        if (kind === 'mixed') { showTypeError('Это не файл справочника', `Файл содержит массив <span class="highlight">components</span>.`); input.value = ''; return; }
+        applyCatalogFileData(data, file.name);
+        input.value = '';
+    };
+    reader.onerror = function() { alert("Ошибка чтения файла."); input.value = ''; };
+    reader.readAsText(file);
+}
+
+async function saveWarehouseClicked() {
+    if (!warehouseFileHandle) await saveWarehouseAs();
+    else await saveWarehouseToFile(true);
+}
+async function saveWarehouseAs() {
+    if (!HAS_FSA) {
+        downloadBlob(warehouseContent(), 'warehouse_db.json', 'application/json');
+        flashSaved('warehouse');
+        return;
+    }
+    try {
+        const handle = await window.showSaveFilePicker({
+            suggestedName: 'warehouse_db.json',
+            types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+        });
+        warehouseFileHandle = handle;
+        await idbSet('wh_warehouse_handle', handle);
+        updateWarehouseUI();
+        await saveWarehouseToFile(false);
+    } catch(e) { if (e.name !== 'AbortError') console.error(e); }
+}
+async function saveWarehouseToFile(interactive) {
+    if (!warehouseFileHandle) { if (interactive) await saveWarehouseAs(); return false; }
+    try {
+        let perm = 'granted';
+        try { perm = await warehouseFileHandle.queryPermission({ mode: 'readwrite' }); } catch(e) {}
+        if (perm !== 'granted') {
+            if (!interactive) return false;
+            try { perm = await warehouseFileHandle.requestPermission({ mode: 'readwrite' }); } catch(e) {}
+        }
+        if (perm !== 'granted') { if (interactive) alert('Нет разрешения на запись в файл.'); return false; }
+        const w = await warehouseFileHandle.createWritable();
+        await w.write(warehouseContent());
+        await w.close();
+        flashSaved('warehouse');
+        return true;
+    } catch(e) {
+        if (interactive) alert('Не удалось сохранить склад: ' + e.message);
+        return false;
+    }
+}
+async function detachWarehouseFile() {
+    if (!confirm('Отвязать файл склада?')) return;
+    warehouseFileHandle = null;
+    try { await idbDel('wh_warehouse_handle'); } catch(e) {}
+    updateWarehouseUI();
+}
+function updateWarehouseUI() {
+    if (warehouseFileHandle) {
+        statusWarehouse.textContent = warehouseFileHandle.name || 'файл';
+        statusWarehouse.classList.remove('empty');
+        statusWarehouse.classList.add('loaded');
+        btnDetachWarehouse.classList.remove('hidden');
+    } else {
+        statusWarehouse.textContent = 'файл не привязан';
+        statusWarehouse.classList.add('empty');
+        statusWarehouse.classList.remove('loaded');
+        btnDetachWarehouse.classList.add('hidden');
+    }
+}
+
+async function saveCatalogClicked() {
+    if (!catalogFileHandle) await saveCatalogAs();
+    else await saveCatalogToFile(true);
+}
+async function saveCatalogAs() {
+    if (!HAS_FSA) {
+        downloadBlob(catalogContent(), 'catalog_db.json', 'application/json');
+        flashSaved('catalog');
+        return;
+    }
+    try {
+        const handle = await window.showSaveFilePicker({
+            suggestedName: 'catalog_db.json',
+            types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+        });
+        catalogFileHandle = handle;
+        await idbSet('wh_catalog_handle', handle);
+        updateCatalogUI();
+        await saveCatalogToFile(false);
+    } catch(e) { if (e.name !== 'AbortError') console.error(e); }
+}
+async function saveCatalogToFile(interactive) {
+    if (!catalogFileHandle) { if (interactive) await saveCatalogAs(); return false; }
+    try {
+        let perm = 'granted';
+        try { perm = await catalogFileHandle.queryPermission({ mode: 'readwrite' }); } catch(e) {}
+        if (perm !== 'granted') {
+            if (!interactive) return false;
+            try { perm = await catalogFileHandle.requestPermission({ mode: 'readwrite' }); } catch(e) {}
+        }
+        if (perm !== 'granted') { if (interactive) alert('Нет разрешения на запись в файл.'); return false; }
+        const w = await catalogFileHandle.createWritable();
+        await w.write(catalogContent());
+        await w.close();
+        flashSaved('catalog');
+        return true;
+    } catch(e) {
+        if (interactive) alert('Не удалось сохранить справочник: ' + e.message);
+        return false;
+    }
+}
+async function detachCatalogFile() {
+    if (!confirm('Отвязать файл справочника?')) return;
+    catalogFileHandle = null;
+    try { await idbDel('wh_catalog_handle'); } catch(e) {}
+    updateCatalogUI();
+}
+function updateCatalogUI() {
+    if (catalogFileHandle) {
+        statusCatalog.textContent = catalogFileHandle.name || 'файл';
+        statusCatalog.classList.remove('empty');
+        statusCatalog.classList.add('loaded');
+        btnDetachCatalog.classList.remove('hidden');
+    } else {
+        statusCatalog.textContent = 'файл не привязан';
+        statusCatalog.classList.add('empty');
+        statusCatalog.classList.remove('loaded');
+        btnDetachCatalog.classList.add('hidden');
+    }
+}
+
+function downloadBlob(content, filename, mime) {
+    const blob = new Blob([content], { type: (mime || 'text/plain') + ';charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 100);
+}
+async function restoreFileHandles() {
+    if (!HAS_FSA) return;
+    try {
+        const wh = await idbGet('wh_warehouse_handle');
+        if (wh) { warehouseFileHandle = wh; try { await wh.queryPermission({ mode: 'readwrite' }); } catch(e) {} }
+    } catch(e) {}
+    try {
+        const ch = await idbGet('wh_catalog_handle');
+        if (ch) { catalogFileHandle = ch; try { await ch.queryPermission({ mode: 'readwrite' }); } catch(e) {} }
+    } catch(e) {}
+    updateWarehouseUI();
+    updateCatalogUI();
+}
+
+function persistWarehouse() {
+    try { localStorage.setItem(LS_KEY_WAREHOUSE, JSON.stringify({ components })); } catch (e) {}
+    if (isAutosave() && warehouseFileHandle) saveWarehouseToFile(false);
+}
+function persistCatalog() {
+    try { localStorage.setItem(LS_KEY_CATALOG, JSON.stringify({ componentTypes, commonPackages, packagesByType })); } catch (e) {}
+    if (isAutosave() && catalogFileHandle) saveCatalogToFile(false);
+}
+function loadFromLocalStorage() {
+    try {
+        const raw = localStorage.getItem(LS_KEY_WAREHOUSE);
+        if (raw) {
+            const data = JSON.parse(raw);
+            if (data && Array.isArray(data.components)) {
+                components = data.components;
+                if (components.length > 0) {
+                    statusWarehouse.textContent = `браузер (${components.length} поз.)`;
+                    statusWarehouse.classList.remove('empty');
+                    statusWarehouse.classList.add('loaded');
+                }
+            }
+        }
+    } catch (e) {}
+    try {
+        const raw = localStorage.getItem(LS_KEY_CATALOG);
+        if (raw) {
+            const data = JSON.parse(raw);
+            applyCatalogData(data);
+            if (componentTypes.length || commonPackages.length || Object.keys(packagesByType).length) {
+                statusCatalog.textContent = `браузер (${componentTypes.length} тип.)`;
+                statusCatalog.classList.remove('empty');
+                statusCatalog.classList.add('loaded');
+            }
+        }
+    } catch (e) {}
+}
+function applyCatalogData(data) {
+    if (!data || typeof data !== 'object') return;
+    if (Array.isArray(data.componentTypes)) componentTypes = data.componentTypes;
+    if (Array.isArray(data.commonPackages) || (data.packagesByType && typeof data.packagesByType === 'object')) {
+        commonPackages = Array.isArray(data.commonPackages) ? data.commonPackages : [];
+        packagesByType = (data.packagesByType && typeof data.packagesByType === 'object') ? data.packagesByType : {};
+    } else if (Array.isArray(data.packages)) {
+        commonPackages = data.packages;
+        packagesByType = {};
+    }
+}
+
+function showConfirm({ title, subtitle = '', bodyHtml, confirmText = 'Удалить', confirmClass = 'btn-danger', icon = '⚠️', iconClass = 'danger', onConfirm, secondaryText = null, secondaryClass = 'btn-primary', onSecondary = null }) {
+    modalTitle.textContent = title || 'Подтверждение';
+    if (subtitle) { modalSubtitle.textContent = subtitle; modalSubtitle.classList.add('show'); }
+    else { modalSubtitle.textContent = ''; modalSubtitle.classList.remove('show'); }
+    modalBody.innerHTML = bodyHtml || '';
+    const classMap = { 'btn-danger': 'btn-confirm-danger', 'btn-success': 'btn-confirm-success', 'btn-primary': 'btn-confirm-primary' };
+    modalConfirm.textContent = confirmText;
+    modalConfirm.className = 'btn ' + (classMap[confirmClass] || confirmClass);
+    modalCallback = onConfirm;
+    modalIcon.textContent = icon;
+    modalIcon.className = 'icon ' + iconClass;
+    if (secondaryText && typeof onSecondary === 'function') {
+        modalSecondary.textContent = secondaryText;
+        modalSecondary.className = 'btn ' + (classMap[secondaryClass] || secondaryClass);
+        modalSecondary.style.display = 'inline-flex';
+        modalSecondaryCallback = onSecondary;
+    } else {
+        modalSecondary.style.display = 'none';
+        modalSecondaryCallback = null;
+    }
+    modalOverlay.classList.add('active');
+    setTimeout(() => modalConfirm.focus(), 50);
+}
+function hideModal() {
+    modalOverlay.classList.remove('active');
+    modalCallback = null;
+    modalSecondaryCallback = null;
+    modalSecondary.style.display = 'none';
+}
+modalCancel.addEventListener('click', hideModal);
+modalCloseBtn.addEventListener('click', hideModal);
+modalConfirm.addEventListener('click', () => { const cb = modalCallback; hideModal(); if (typeof cb === 'function') cb(); });
+modalSecondary.addEventListener('click', () => { const cb = modalSecondaryCallback; hideModal(); if (typeof cb === 'function') cb(); });
+modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) hideModal(); });
+
+function showPrompt({ title, label, initialValue = '', infoHtml = '', validate = null, onSave }) {
+    promptTitle.textContent = title || 'Редактирование';
+    promptLabel.textContent = label || 'Новое значение';
+    promptInput.value = initialValue;
+    promptError.style.display = 'none';
+    promptError.textContent = '';
+    if (infoHtml) { promptInfo.innerHTML = infoHtml; promptInfo.style.display = 'block'; }
+    else { promptInfo.style.display = 'none'; }
+    promptSaveCallback = () => {
+        const val = promptInput.value.trim();
+        if (validate) {
+            const err = validate(val);
+            if (err) { promptError.textContent = err; promptError.style.display = 'block'; return false; }
+        }
+        if (typeof onSave === 'function') onSave(val);
+        return true;
+    };
+    promptOverlay.classList.add('active');
+    setTimeout(() => { promptInput.focus(); promptInput.select(); }, 30);
+}
+function hidePrompt() { promptOverlay.classList.remove('active'); promptSaveCallback = null; }
+promptCancel.addEventListener('click', hidePrompt);
+promptCloseBtn.addEventListener('click', hidePrompt);
+promptSave.addEventListener('click', () => { const cb = promptSaveCallback; if (typeof cb === 'function' && cb() === true) hidePrompt(); });
+promptOverlay.addEventListener('click', (e) => { if (e.target === promptOverlay) hidePrompt(); });
+promptInput.addEventListener('input', () => { promptError.style.display = 'none'; });
+promptInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); promptSave.click(); } });
+
+document.getElementById('settings-close-btn').addEventListener('click', closeSettings);
+document.getElementById('settings-cancel').addEventListener('click', closeSettings);
+document.getElementById('settings-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('settings-overlay')) closeSettings(); });
+
+document.getElementById('history-close-btn').addEventListener('click', hideHistory);
+document.getElementById('history-cancel').addEventListener('click', hideHistory);
+document.getElementById('history-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('history-overlay')) hideHistory(); });
+
+document.getElementById('scan-close-btn').addEventListener('click', closeScanner);
+document.getElementById('scan-cancel').addEventListener('click', closeScanner);
+document.getElementById('scan-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('scan-overlay')) closeScanner(); });
+
+document.getElementById('qr-label-close-btn').addEventListener('click', hideQRLabels);
+document.getElementById('qr-label-cancel').addEventListener('click', hideQRLabels);
+document.getElementById('qr-label-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('qr-label-overlay')) hideQRLabels(); });
+
+document.getElementById('mass-edit-close-btn').addEventListener('click', hideMassEdit);
+document.getElementById('mass-edit-cancel').addEventListener('click', hideMassEdit);
+document.getElementById('mass-edit-apply').addEventListener('click', applyMassEdit);
+document.getElementById('mass-edit-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('mass-edit-overlay')) hideMassEdit(); });
+
+function openExcelExportDialog() {
+    if (components.length === 0) {
+        showConfirm({ title: 'Склад пуст', bodyHtml: 'Нет данных для экспорта.', confirmText: 'Понятно', confirmClass: 'btn-primary', icon: 'ℹ️', iconClass: 'info', onConfirm: () => {} });
+        return;
+    }
+    const filtered = getFilteredData();
+    const filterActive = isFilterActive();
+    excelAllCount.textContent = components.length;
+    excelFilteredCount.textContent = filtered.length;
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    excelFilename.textContent = `warehouse_${dateStr}.xlsx`;
+    const filteredRadio = excelFilteredOption.querySelector('input');
+    if (filterActive && filtered.length > 0) {
+        excelFilteredOption.style.opacity = '1';
+        excelFilteredOption.style.pointerEvents = 'auto';
+        filteredRadio.disabled = false;
+        filteredRadio.checked = true;
+    } else {
+        excelFilteredOption.style.opacity = '0.5';
+        excelFilteredOption.style.pointerEvents = 'none';
+        filteredRadio.disabled = true;
+        document.querySelector('input[name="excel-scope"][value="all"]').checked = true;
+    }
+    excelOverlay.classList.add('active');
+}
+function hideExcelModal() { excelOverlay.classList.remove('active'); }
+excelCancel.addEventListener('click', hideExcelModal);
+excelCloseBtn.addEventListener('click', hideExcelModal);
+excelOverlay.addEventListener('click', (e) => { if (e.target === excelOverlay) hideExcelModal(); });
+excelConfirm.addEventListener('click', () => {
+    const scope = document.querySelector('input[name="excel-scope"]:checked').value;
+    const includeCatalog = excelIncludeCatalog.checked;
+    const data = scope === 'filtered' ? getFilteredData() : components.slice();
+    hideExcelModal();
+    exportToExcel(data, includeCatalog);
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('scan-overlay').classList.contains('active')) closeScanner();
+    else if (modalOverlay.classList.contains('active')) hideModal();
+    else if (promptOverlay.classList.contains('active')) hidePrompt();
+    else if (excelOverlay.classList.contains('active')) hideExcelModal();
+    else if (document.getElementById('settings-overlay').classList.contains('active')) closeSettings();
+    else if (document.getElementById('history-overlay').classList.contains('active')) hideHistory();
+    else if (document.getElementById('qr-label-overlay').classList.contains('active')) hideQRLabels();
+    else if (document.getElementById('mass-edit-overlay').classList.contains('active')) hideMassEdit();
+    else if (selectedIndices.size > 0) clearSelection();
+});
+
+document.querySelectorAll('.switcher-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.switcher-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+});
+
+function getAllPackagesForType(type) {
+    const set = new Set(commonPackages);
+    if (type && Array.isArray(packagesByType[type])) packagesByType[type].forEach(p => set.add(p));
+    return Array.from(set).sort();
+}
+function getTotalPackagesCount() {
+    const set = new Set(commonPackages);
+    Object.values(packagesByType).forEach(arr => arr.forEach(p => set.add(p)));
+    return set.size;
+}
+function isEmpty(v) { return v === undefined || v === null || String(v).trim() === ''; }
+function isFilterActive() { return searchInput.value.trim() !== '' || cellFilter.value !== '' || typeFilter.value !== ''; }
+function getFilteredData() {
+    const searchText = searchInput.value.toLowerCase().trim();
+    const selectedCell = cellFilter.value;
+    const selectedType = typeFilter.value;
+    return components.filter(item => {
+        const matchesSearch = searchText === '' ||
+            (item.name || '').toLowerCase().includes(searchText) ||
+            (item.type && item.type.toLowerCase().includes(searchText)) ||
+            (item.package && item.package.toLowerCase().includes(searchText)) ||
+            (item.cell && item.cell.toLowerCase().includes(searchText)) ||
+            (item.desc && item.desc.toLowerCase().includes(searchText));
+        let matchesCell;
+        if (selectedCell === '') matchesCell = true;
+        else if (selectedCell === '__EMPTY__') matchesCell = isEmpty(item.cell);
+        else matchesCell = item.cell && item.cell.toLowerCase() === selectedCell;
+        let matchesType;
+        if (selectedType === '') matchesType = true;
+        else if (selectedType === '__EMPTY__') matchesType = isEmpty(item.type);
+        else matchesType = item.type && item.type.toLowerCase() === selectedType;
+        return matchesSearch && matchesCell && matchesType;
+    });
+}
+
+function resetAll() {
+    showConfirm({
+        title: 'Полная очистка',
+        subtitle: 'Склад и справочники будут стёрты',
+        bodyHtml: `<div class="component-details">
+            <div class="component-detail-row"><span class="component-detail-label">Позиции</span><span class="component-detail-value strong">${components.length}</span></div>
+            <div class="component-detail-row"><span class="component-detail-label">Типы</span><span class="component-detail-value strong">${componentTypes.length}</span></div>
+            <div class="component-detail-row"><span class="component-detail-label">Корпуса</span><span class="component-detail-value strong">${getTotalPackagesCount()}</span></div>
+        </div>
+        <div class="modal-warning">⚠️ Привязанные файлы будут перезаписаны при следующем сохранении.</div>`,
+        confirmText: 'Очистить всё',
+        confirmClass: 'btn-danger',
+        icon: '🗑',
+        iconClass: 'danger',
+        onConfirm: () => {
+            snap('before_reset');
+            components = [];
+            componentTypes = [];
+            commonPackages = [];
+            packagesByType = {};
+            selectedIndices.clear();
+            localStorage.removeItem(LS_KEY_WAREHOUSE);
+            localStorage.removeItem(LS_KEY_CATALOG);
+            statusWarehouse.textContent = 'файл не привязан';
+            statusWarehouse.classList.add('empty');
+            statusWarehouse.classList.remove('loaded');
+            statusCatalog.textContent = 'файл не привязан';
+            statusCatalog.classList.add('empty');
+            statusCatalog.classList.remove('loaded');
+            refreshUI();
+            checkNameDuplicate();
+        }
+    });
+}
+
+function refreshUI() {
+    updateCompTypeSelect();
+    updatePackageSelect();
+    updateTypeFilterOptions();
+    updateCellFilterOptions();
+    renderCatalogLists();
+    renderTypedPackages();
+    renderTable();
+    updateHeaderStats();
+    updateMassBar();
+}
+function updateHeaderStats() {
+    statPositions.textContent = components.length;
+    statQty.textContent = components.reduce((s, i) => s + Number(i.qty || 0), 0);
+    statPackages.textContent = getTotalPackagesCount();
+    statTypes.textContent = componentTypes.length;
+}
+function updateCompTypeSelect() {
+    const cur = compTypeSelect.value;
+    compTypeSelect.innerHTML = '<option value="">— Не выбрано —</option>';
+    [...componentTypes].sort().forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t; opt.textContent = t;
+        compTypeSelect.appendChild(opt);
+    });
+    compTypeSelect.value = (cur && componentTypes.includes(cur)) ? cur : '';
+}
+function updatePackageSelect() {
+    const selectedType = compTypeSelect.value;
+    const cur = compPackageSelect.value;
+    const available = getAllPackagesForType(selectedType);
+    compPackageSelect.innerHTML = '<option value="">— Не выбрано —</option>';
+    available.forEach(pkg => {
+        const opt = document.createElement('option');
+        opt.value = pkg; opt.textContent = pkg;
+        compPackageSelect.appendChild(opt);
+    });
+    compPackageSelect.value = (cur && available.includes(cur)) ? cur : '';
+    if (available.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = '— нет доступных корпусов —';
+        opt.disabled = true; opt.selected = true;
+        compPackageSelect.appendChild(opt);
+    }
+}
+function updateCellFilterOptions() {
+    const cur = cellFilter.value;
+    const cells = new Set();
+    components.forEach(item => { if (item.cell && item.cell.trim() !== '') cells.add(item.cell.trim()); });
+    cellFilter.innerHTML = '<option value="">Все ячейки</option>';
+    const hasEmptyCell = components.some(item => isEmpty(item.cell));
+    if (hasEmptyCell) {
+        const opt = document.createElement('option');
+        opt.value = '__EMPTY__';
+        opt.textContent = '— Без ячейки —';
+        if (cur === '__EMPTY__') opt.selected = true;
+        cellFilter.appendChild(opt);
+    }
+    Array.from(cells).sort((a, b) => Number(a) - Number(b) || a.localeCompare(b)).forEach(cell => {
+        const opt = document.createElement('option');
+        opt.value = cell.toLowerCase(); opt.textContent = cell;
+        if (cell.toLowerCase() === cur.toLowerCase()) opt.selected = true;
+        cellFilter.appendChild(opt);
+    });
+}
+function updateTypeFilterOptions() {
+    const cur = typeFilter.value;
+    const types = new Set();
+    components.forEach(item => { if (item.type && item.type.trim() !== '') types.add(item.type.trim()); });
+    typeFilter.innerHTML = '<option value="">Все типы</option>';
+    const hasEmptyType = components.some(item => isEmpty(item.type));
+    if (hasEmptyType) {
+        const opt = document.createElement('option');
+        opt.value = '__EMPTY__';
+        opt.textContent = '— Без типа —';
+        if (cur === '__EMPTY__') opt.selected = true;
+        typeFilter.appendChild(opt);
+    }
+    Array.from(types).sort().forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.toLowerCase(); opt.textContent = t;
+        if (t.toLowerCase() === cur.toLowerCase()) opt.selected = true;
+        typeFilter.appendChild(opt);
+    });
+}
+function renderCatalogLists() {
+    typesCountEl.textContent = componentTypes.length;
+    commonCountEl.textContent = commonPackages.length;
+    typeListEl.innerHTML = '';
+    if (componentTypes.length === 0) {
+        typeListEl.innerHTML = '<li class="empty-msg">Список типов пуст</li>';
+    } else {
+        [...componentTypes].sort().forEach(t => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-name">${escapeHtml(t)}</span>
+                <div class="catalog-item-actions">
+                    <button class="btn-edit" onclick="editType('${escapeAttr(t)}')">✏️ Редактировать</button>
+                    <button class="btn-delete" onclick="deleteType('${escapeAttr(t)}')">Удалить</button>
+                </div>`;
+            typeListEl.appendChild(li);
+        });
+    }
+    commonPackageListEl.innerHTML = '';
+    if (commonPackages.length === 0) {
+        commonPackageListEl.innerHTML = '<li class="empty-msg">Общих корпусов нет</li>';
+    } else {
+        [...commonPackages].sort().forEach(pkg => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="item-name">${escapeHtml(pkg)}</span>
+                <div class="catalog-item-actions">
+                    <button class="btn-edit" onclick="editCommonPackage('${escapeAttr(pkg)}')">✏️ Редактировать</button>
+                    <button class="btn-delete" onclick="deleteCommonPackage('${escapeAttr(pkg)}')">Удалить</button>
+                </div>`;
+            commonPackageListEl.appendChild(li);
+        });
+    }
+    const cur = catalogTypeSelect.value;
+    catalogTypeSelect.innerHTML = '<option value="">— Выберите тип —</option>';
+    [...componentTypes].sort().forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t; opt.textContent = t;
+        if (t === cur) opt.selected = true;
+        catalogTypeSelect.appendChild(opt);
+    });
+}
+function renderTypedPackages() {
+    const type = catalogTypeSelect.value;
+    typedPackagesListEl.innerHTML = '';
+    if (!type) {
+        typedPackagesListEl.innerHTML = '<li class="empty-msg">Выберите тип компонента выше</li>';
+        return;
+    }
+    const pkgs = Array.isArray(packagesByType[type]) ? packagesByType[type] : [];
+    if (pkgs.length === 0) {
+        typedPackagesListEl.innerHTML = '<li class="empty-msg">Для этого типа специфичные корпуса не заданы</li>';
+        return;
+    }
+    [...pkgs].sort().forEach(pkg => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="item-name">${escapeHtml(pkg)}</span>
+            <div class="catalog-item-actions">
+                <button class="btn-edit" onclick="editTypedPackage('${escapeAttr(type)}', '${escapeAttr(pkg)}')">✏️ Редактировать</button>
+                <button class="btn-delete" onclick="deleteTypedPackage('${escapeAttr(type)}', '${escapeAttr(pkg)}')">Удалить</button>
+            </div>`;
+        typedPackagesListEl.appendChild(li);
+    });
+}
+
+window.editType = function(oldName) {
+    const affected = components.filter(c => c.type === oldName).length;
+    const infoHtml = affected > 0 ? `ℹ️ Будет обновлено <strong>${affected}</strong> поз.` : '';
+    showPrompt({
+        title: 'Переименовать тип', label: 'Новое название типа',
+        initialValue: oldName, infoHtml,
+        validate: (val) => {
+            if (!val) return 'Название не может быть пустым';
+            if (val === oldName) return 'Название не изменилось';
+            if (componentTypes.includes(val)) return `Тип "${val}" уже есть`;
+            return null;
+        },
+        onSave: (newName) => {
+            snap('edit_type');
+            const idx = componentTypes.indexOf(oldName);
+            if (idx !== -1) componentTypes[idx] = newName;
+            if (Object.prototype.hasOwnProperty.call(packagesByType, oldName)) {
+                packagesByType[newName] = packagesByType[oldName];
+                delete packagesByType[oldName];
+            }
+            components.forEach(c => { if (c.type === oldName) c.type = newName; });
+            persistCatalog(); persistWarehouse(); refreshUI();
+        }
+    });
+};
+window.editCommonPackage = function(oldName) {
+    const affected = components.filter(c => c.package === oldName).length;
+    const infoHtml = affected > 0 ? `ℹ️ Будет обновлено <strong>${affected}</strong> поз.` : '';
+    showPrompt({
+        title: 'Переименовать корпус', label: 'Новое название корпуса',
+        initialValue: oldName, infoHtml,
+        validate: (val) => {
+            if (!val) return 'Название не может быть пустым';
+            if (val === oldName) return 'Название не изменилось';
+            if (commonPackages.includes(val)) return `Общий корпус "${val}" уже есть`;
+            return null;
+        },
+        onSave: (newName) => {
+            snap('edit_pkg');
+            const idx = commonPackages.indexOf(oldName);
+            if (idx !== -1) commonPackages[idx] = newName;
+            components.forEach(c => { if (c.package === oldName) c.package = newName; });
+            persistCatalog(); persistWarehouse(); refreshUI();
+        }
+    });
+};
+window.editTypedPackage = function(type, oldName) {
+    const affected = components.filter(c => c.type === type && c.package === oldName).length;
+    const infoHtml = affected > 0 ? `ℹ️ Будет обновлено <strong>${affected}</strong> поз.` : '';
+    showPrompt({
+        title: 'Переименовать корпус', label: `Корпус для типа "${type}"`,
+        initialValue: oldName, infoHtml,
+        validate: (val) => {
+            if (!val) return 'Название не может быть пустым';
+            if (val === oldName) return 'Название не изменилось';
+            const arr = packagesByType[type] || [];
+            if (arr.includes(val)) return `Корпус "${val}" уже есть`;
+            return null;
+        },
+        onSave: (newName) => {
+            snap('edit_typed_pkg');
+            const arr = packagesByType[type] || [];
+            const idx = arr.indexOf(oldName);
+            if (idx !== -1) arr[idx] = newName;
+            components.forEach(c => { if (c.type === type && c.package === oldName) c.package = newName; });
+            persistCatalog(); persistWarehouse(); refreshUI();
+        }
+    });
+};
+window.deleteType = function(t) {
+    const used = components.filter(c => c.type === t).length;
+    let warn = '';
+    if (used > 0) warn += `<div class="modal-warning">⚠️ Используется в <strong>${used}</strong> поз.</div>`;
+    showConfirm({
+        title: 'Удаление типа',
+        bodyHtml: `Удалить тип <span class="highlight">${escapeHtml(t)}</span>?${warn}`,
+        confirmText: 'Удалить', confirmClass: 'btn-danger',
+        icon: '🗑', iconClass: 'danger',
+        onConfirm: () => {
+            snap('delete_type');
+            componentTypes = componentTypes.filter(x => x !== t);
+            delete packagesByType[t];
+            persistCatalog(); refreshUI();
+        }
+    });
+};
+window.deleteCommonPackage = function(pkg) {
+    const used = components.filter(c => c.package === pkg).length;
+    let warn = '';
+    if (used > 0) warn += `<div class="modal-warning">⚠️ Используется в <strong>${used}</strong> поз.</div>`;
+    showConfirm({
+        title: 'Удаление корпуса',
+        bodyHtml: `Удалить общий корпус <span class="highlight">${escapeHtml(pkg)}</span>?${warn}`,
+        confirmText: 'Удалить', confirmClass: 'btn-danger',
+        icon: '🗑', iconClass: 'danger',
+        onConfirm: () => {
+            snap('delete_pkg');
+            commonPackages = commonPackages.filter(p => p !== pkg);
+            persistCatalog(); refreshUI();
+        }
+    });
+};
+window.deleteTypedPackage = function(type, pkg) {
+    if (!packagesByType[type]) return;
+    const used = components.filter(c => c.type === type && c.package === pkg).length;
+    let warn = '';
+    if (used > 0) warn += `<div class="modal-warning">⚠️ Используется в <strong>${used}</strong> поз.</div>`;
+    showConfirm({
+        title: 'Удаление корпуса типа',
+        bodyHtml: `Удалить корпус <span class="highlight">${escapeHtml(pkg)}</span> из типа <span class="highlight">${escapeHtml(type)}</span>?${warn}`,
+        confirmText: 'Удалить', confirmClass: 'btn-danger',
+        icon: '🗑', iconClass: 'danger',
+        onConfirm: () => {
+            snap('delete_typed_pkg');
+            packagesByType[type] = packagesByType[type].filter(p => p !== pkg);
+            if (packagesByType[type].length === 0) delete packagesByType[type];
+            persistCatalog(); refreshUI();
+        }
+    });
+};
+
+function renderTable() {
+    tableBody.innerHTML = '';
+    const searchText = searchInput.value.toLowerCase().trim();
+    const selectedCell = cellFilter.value;
+    const selectedType = typeFilter.value;
+
+    let displayData = components.map((item, originalIndex) => ({ ...item, originalIndex }));
+
+    displayData = displayData.filter(item => {
+        const matchesSearch = searchText === '' ||
+            (item.name || '').toLowerCase().includes(searchText) ||
+            (item.type && item.type.toLowerCase().includes(searchText)) ||
+            (item.package && item.package.toLowerCase().includes(searchText)) ||
+            (item.cell && item.cell.toLowerCase().includes(searchText)) ||
+            (item.desc && item.desc.toLowerCase().includes(searchText));
+        let matchesCell;
+        if (selectedCell === '') matchesCell = true;
+        else if (selectedCell === '__EMPTY__') matchesCell = isEmpty(item.cell);
+        else matchesCell = item.cell && item.cell.toLowerCase() === selectedCell;
+        let matchesType;
+        if (selectedType === '') matchesType = true;
+        else if (selectedType === '__EMPTY__') matchesType = isEmpty(item.type);
+        else matchesType = item.type && item.type.toLowerCase() === selectedType;
+        return matchesSearch && matchesCell && matchesType;
+    });
+
+    if (currentSortField !== '') {
+        displayData.sort((a, b) => {
+            let valA = a[currentSortField];
+            let valB = b[currentSortField];
+            const emptyA = isEmpty(valA);
+            const emptyB = isEmpty(valB);
+            if (emptyA && emptyB) return 0;
+            if (emptyA) return 1;
+            if (emptyB) return -1;
+            if (currentSortField === 'qty') { valA = Number(valA); valB = Number(valB); }
+            else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); }
+            if (valA < valB) return isSortAsc ? -1 : 1;
+            if (valA > valB) return isSortAsc ? 1 : -1;
+            return 0;
+        });
+    }
+
+    const filterActive = searchText !== '' || selectedCell !== '' || selectedType !== '';
+    if (filterActive) {
+        filterInfo.classList.remove('hidden');
+        filterInfo.textContent = `🔎 Показано: ${displayData.length} из ${components.length} позиций`;
+    } else {
+        filterInfo.classList.add('hidden');
+    }
+
+    if (displayData.length === 0) {
+        const tr = document.createElement('tr');
+        tr.className = 'empty-row';
+        tr.innerHTML = `<td colspan="8">${filterActive ? 'Ничего не найдено.' : 'Склад пуст. Откройте файл склада или добавьте компонент вручную.'}</td>`;
+        tableBody.appendChild(tr);
+    } else {
+        displayData.forEach(item => {
+            const tr = document.createElement('tr');
+            const datasheetUrl = `https://www.google.com/search?q=${encodeURIComponent(item.name)}+datasheet`;
+            const isChecked = selectedIndices.has(item.originalIndex);
+            const cellHtml = `<span class="cell-badge" onclick="startEdit(this, ${item.originalIndex}, 'cell')">${item.cell ? escapeHtml(item.cell) : '—'}</span>`;
+            tr.innerHTML = `
+                <td class="cell-checkbox">
+                    <input type="checkbox" class="row-checkbox" data-index="${item.originalIndex}" ${isChecked ? 'checked' : ''} onchange="toggleRow(${item.originalIndex}, this)">
+                </td>
+                <td style="font-weight: 600;">${escapeHtml(item.name)}</td>
+                <td><span class="type-badge" onclick="startEdit(this, ${item.originalIndex}, 'type')">${item.type ? escapeHtml(item.type) : '—'}</span></td>
+                <td>
+                    <div class="qty-actions">
+                        <button class="btn-qty" onclick="changeQty(${item.originalIndex}, -1)">-</button>
+                        <span class="qty-badge">${item.qty} шт.</span>
+                        <button class="btn-qty" onclick="changeQty(${item.originalIndex}, 1)">+</button>
+                    </div>
+                </td>
+                <td style="text-align: center;">${cellHtml}</td>
+                <td style="text-align: center;"><span class="package-badge" onclick="startEdit(this, ${item.originalIndex}, 'package')">${item.package ? escapeHtml(item.package) : '—'}</span></td>
+                <td><span class="editable-desc" onclick="startEdit(this, ${item.originalIndex}, 'desc')">${item.desc ? escapeHtml(item.desc) : '—'}</span></td>
+                <td>
+                    <div class="actions-cell">
+                        <a href="${datasheetUrl}" target="_blank" class="btn-datasheet">🔎 Datasheet</a>
+                    </div>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+    updateMassBar();
+}
+
+compTypeSelect.addEventListener('change', updatePackageSelect);
+catalogTypeSelect.addEventListener('change', renderTypedPackages);
+compNameInput.addEventListener('input', checkNameDuplicate);
+compNameInput.addEventListener('blur', checkNameDuplicate);
+
+typeForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const input = document.getElementById('new-type-name');
+    const t = input.value.trim();
+    if (!t) return;
+    if (componentTypes.includes(t)) { alert("Такой тип уже есть."); return; }
+    snap('add_type');
+    componentTypes.push(t);
+    persistCatalog();
+    input.value = '';
+    refreshUI();
+});
+commonPackageForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const input = document.getElementById('new-common-package');
+    const pkg = input.value.trim();
+    if (!pkg) return;
+    if (commonPackages.includes(pkg)) { alert("Такой общий корпус уже есть."); return; }
+    snap('add_pkg');
+    commonPackages.push(pkg);
+    persistCatalog();
+    input.value = '';
+    refreshUI();
+});
+typedPackageForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const type = catalogTypeSelect.value;
+    if (!type) { alert("Сначала выберите тип."); return; }
+    const input = document.getElementById('new-typed-package');
+    const pkg = input.value.trim();
+    if (!pkg) return;
+    if (!Array.isArray(packagesByType[type])) packagesByType[type] = [];
+    if (packagesByType[type].includes(pkg)) { alert(`Корпус "${pkg}" уже есть у типа "${type}".`); return; }
+    snap('add_typed_pkg');
+    packagesByType[type].push(pkg);
+    persistCatalog();
+    input.value = '';
+    refreshUI();
+});
+
+form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    try {
+        const name = compNameInput.value.trim();
+        const type = compTypeSelect.value;
+        const qty = parseInt(document.getElementById('comp-qty').value);
+        const cell = document.getElementById('comp-cell').value.trim();
+        const packageValue = compPackageSelect.value;
+        const desc = document.getElementById('comp-desc').value.trim();
+        if (!name || isNaN(qty)) return;
+        const existingIdx = components.findIndex(c => (c.name || '').toLowerCase() === name.toLowerCase());
+
+        if (existingIdx !== -1) {
+            const existing = components[existingIdx];
+            const metaChips = [`<span class="meta-chip primary">📦 ${existing.qty} шт.</span>`];
+            if (existing.cell) metaChips.push(`<span class="meta-chip">📍 ${escapeHtml(existing.cell)}</span>`);
+            if (existing.package) metaChips.push(`<span class="meta-chip">🔧 ${escapeHtml(existing.package)}</span>`);
+            showConfirm({
+                title: 'Компонент уже есть',
+                subtitle: 'Найдена совпадающая позиция',
+                bodyHtml: `
+                    <div class="component-preview">
+                        <div class="component-preview-icon">📦</div>
+                        <div class="component-preview-info">
+                            <div class="component-preview-name">${escapeHtml(existing.name)}</div>
+                            <div class="component-preview-meta">${metaChips.join('')}</div>
+                        </div>
+                    </div>
+                    <div class="duplicate-actions">
+                        <div class="duplicate-actions-title">Что сделать с новыми ${qty} шт.?</div>
+                        <div class="duplicate-actions-desc">
+                            <strong>Прибавить</strong> — добавить к существующей позиции.<br>
+                            <strong>Создать отдельную</strong> — новая запись с тем же именем.
+                        </div>
+                        <div class="result-preview">
+                            <span class="arrow">→</span>
+                            <span>Итого: <strong>${Number(existing.qty) + qty} шт.</strong></span>
+                        </div>
+                    </div>
+                `,
+                confirmText: `➕ Прибавить`,
+                confirmClass: 'btn-success',
+                icon: '⚠️',
+                iconClass: 'warn',
+                onConfirm: () => {
+                    snap('qty_increase');
+                    existing.qty = Number(existing.qty) + qty;
+                    persistWarehouse();
+                    renderTable();
+                    updateHeaderStats();
+                    form.reset();
+                    updatePackageSelect();
+                    checkNameDuplicate();
+                },
+                secondaryText: '➕ Создать отдельную',
+                secondaryClass: 'btn-primary',
+                onSecondary: () => {
+                    snap('add_duplicate');
+                    components.push({ name, type, qty, cell, package: packageValue, desc });
+                    persistWarehouse();
+                    searchInput.value = '';
+                    cellFilter.value = '';
+                    typeFilter.value = '';
+                    form.reset();
+                    refreshUI();
+                    checkNameDuplicate();
+                }
+            });
+            return;
+        }
+
+        snap('add_component');
+        components.push({ name, type, qty, cell, package: packageValue, desc });
+        persistWarehouse();
+        searchInput.value = '';
+        cellFilter.value = '';
+        typeFilter.value = '';
+        form.reset();
+        refreshUI();
+        checkNameDuplicate();
+    } catch(err) {
+        console.error(err);
+        alert('Не удалось добавить компонент: ' + err.message);
+    }
+});
+
+window.changeQty = function(index, amount) {
+    snap('qty_change');
+    components[index].qty = Math.max(0, Number(components[index].qty) + amount);
+    persistWarehouse();
+    renderTable();
+    updateHeaderStats();
+    checkNameDuplicate();
+};
+window.startEdit = function(element, index, field) {
+    if (element.querySelector('input, select')) return;
+    const currentValue = components[index][field] || '';
+    element.removeAttribute('onclick');
+    let inputHtml = '';
+    if (field === 'package') {
+        const available = getAllPackagesForType(components[index].type);
+        let options = '<option value="">— Не выбрано —</option>';
+        available.forEach(pkg => {
+            options += `<option value="${escapeHtml(pkg)}" ${pkg === currentValue ? 'selected' : ''}>${escapeHtml(pkg)}</option>`;
+        });
+        inputHtml = `<select class="inline-edit-input">${options}</select>`;
+    } else if (field === 'type') {
+        let options = '<option value="">— Не выбрано —</option>';
+        [...componentTypes].sort().forEach(t => {
+            options += `<option value="${escapeHtml(t)}" ${t === currentValue ? 'selected' : ''}>${escapeHtml(t)}</option>`;
+        });
+        inputHtml = `<select class="inline-edit-input">${options}</select>`;
+    } else if (field === 'cell') {
+        inputHtml = `<input type="text" inputmode="numeric" pattern="[0-9]*" class="inline-edit-input" value="${escapeHtml(currentValue)}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">`;
+    } else {
+        inputHtml = `<input type="text" class="inline-edit-input" value="${escapeHtml(currentValue)}">`;
+    }
+    element.innerHTML = `${inputHtml}<div class="edit-controls"><button class="btn btn-success" onclick="saveEdit(event, this, ${index}, '${field}')">ОК</button></div>`;
+    const input = element.querySelector('input, select');
+    input.focus();
+    if (input.select) input.select();
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); element.querySelector('.btn-success').click(); }
+    });
+};
+window.saveEdit = function(event, button, index, field) {
+    event.stopPropagation();
+    const inputOrSelect = button.parentElement.parentElement.querySelector('input, select');
+    snap('inline_edit');
+    components[index][field] = inputOrSelect.value.trim();
+    persistWarehouse();
+    updateTypeFilterOptions();
+    updateCellFilterOptions();
+    renderTable();
+    updateHeaderStats();
+    checkNameDuplicate();
+};
+
+function escapeHtml(text) { return text ? String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ''; }
+function escapeAttr(text) { return String(text).replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
+
+searchInput.addEventListener('input', renderTable);
+cellFilter.addEventListener('change', renderTable);
+typeFilter.addEventListener('change', renderTable);
+
+function handleSort(field) {
+    if (currentSortField === field) isSortAsc = !isSortAsc;
+    else { currentSortField = field; isSortAsc = true; }
+    updateSortIcons();
+    renderTable();
+}
+function updateSortIcons() {
+    ['name', 'type', 'qty', 'cell', 'package'].forEach(field => {
+        const iconEl = document.getElementById(`sort-${field}`);
+        if (iconEl) iconEl.textContent = (field === currentSortField) ? (isSortAsc ? ' ▲' : ' ▼') : '';
+    });
+}
+
+function buildWarehouseRows(data) {
+    const rows = [["Название", "Тип", "Количество (шт)", "Ячейка", "Корпус", "Описание"]];
+    data.forEach(c => {
+        rows.push([c.name || "", c.type || "", Number(c.qty) || 0, c.cell || "", c.package || "", c.desc || ""]);
+    });
+    return rows;
+}
+function buildCatalogSheet(wb) {
+    const rows = [["Тип компонента", "Общие корпуса", "Корпуса этого типа"]];
+    rows.push(["— (общие для всех) —", [...commonPackages].sort().join(", "), ""]);
+    [...componentTypes].sort().forEach(t => {
+        rows.push([t, "", Array.isArray(packagesByType[t]) ? [...packagesByType[t]].sort().join(", ") : ""]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 25 }, { wch: 35 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, ws, "Справочник");
+}
+function exportToExcel(data, includeCatalog) {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const filename = `warehouse_${dateStr}.xlsx`;
+    if (typeof XLSX !== 'undefined') {
+        try {
+            const wb = XLSX.utils.book_new();
+            const wsWh = XLSX.utils.aoa_to_sheet(buildWarehouseRows(data));
+            wsWh['!cols'] = [{ wch: 32 }, { wch: 16 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 45 }];
+            XLSX.utils.book_append_sheet(wb, wsWh, "Склад");
+            if (includeCatalog) buildCatalogSheet(wb);
+            XLSX.writeFile(wb, filename);
+            return;
+        } catch (err) { console.warn('SheetJS:', err); }
+    }
+    exportToXlsFallback(data, includeCatalog, filename.replace(/\.xlsx$/, '.xls'));
+}
+function exportToXlsFallback(data, includeCatalog, filename) {
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    let html = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>table{border-collapse:collapse}th{background:#1e293b;color:#fff;padding:6px 10px;border:1px solid #94a3b8}td{padding:4px 10px;border:1px solid #cbd5e1}</style></head><body><table>
+<thead><tr><th>Название</th><th>Тип</th><th>Количество (шт)</th><th>Ячейка</th><th>Корпус</th><th>Описание</th></tr></thead><tbody>`;
+    data.forEach(c => { html += `<tr><td>${esc(c.name)}</td><td>${esc(c.type)}</td><td>${Number(c.qty) || 0}</td><td>${esc(c.cell)}</td><td>${esc(c.package)}</td><td>${esc(c.desc)}</td></tr>`; });
+    html += `</tbody></table></body></html>`;
+    const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+}
+
+(function init() {
+    loadSavedTheme();
+    loadLeftColumnState();
+    if (chkAutosave) chkAutosave.checked = isAutosave();
+    if (!HAS_FSA) fsaWarn.classList.remove('hidden');
+    loadFromLocalStorage();
+    refreshUI();
+    updateWarehouseUI();
+    updateCatalogUI();
+    restoreFileHandles();
+})();
+</script>
+
+<!-- ============ Регистрация Service Worker ============ -->
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then((reg) => console.log('✅ Service Worker зарегистрирован:', reg.scope))
+                .catch((err) => console.warn('⚠️ Ошибка регистрации SW:', err));
+        });
+    }
+</script>
+<!-- ==================================================== -->
+
+</body>
+</html>
