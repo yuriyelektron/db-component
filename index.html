@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Учет электронных компонентов v8.9</title>
+    <title>Учет электронных компонентов v9.0</title>
 
     <!-- ============ PWA ============ -->
     <link rel="manifest" href="./manifest.json">
@@ -142,6 +142,8 @@
         .btn-xl.history { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: #fff; }
         .btn-xl.settings { background: linear-gradient(135deg, #64748b 0%, #475569 100%); color: #fff; }
         .btn-xl.clear { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff; }
+        .btn-xl.save { background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); color: #fff; }
+        .btn-xl.save:disabled { opacity: .5; cursor: not-allowed; }
 
         #save-flash-global {
             background: #d1fae5;
@@ -186,14 +188,6 @@
         .storage-title-file.empty { color: #cbd5e1; font-style: italic; }
         .storage-title-file.loaded { color: #0f766e; font-weight: 600; }
         .storage-card.storage-catalog .storage-title-file.loaded { color: #1e40af; }
-        .save-flash {
-            display: inline-flex; align-items: center; gap: 4px;
-            background: #d1fae5; color: #065f46; padding: 4px 10px; border-radius: 20px;
-            font-size: 11px; font-weight: 700;
-            opacity: 0; transform: translateY(-2px); transition: opacity .35s, transform .35s;
-            flex-shrink: 0; pointer-events: none; white-space: nowrap;
-        }
-        .save-flash.show { opacity: 1; transform: translateY(0); }
         .storage-body { padding: 0 14px 12px 18px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
         .action-btn {
             display: inline-flex; align-items: center; gap: 5px;
@@ -953,7 +947,7 @@
             <div class="header-brand">
                 <div class="logo-badge">📦</div>
                 <div class="header-title-block">
-                    <h1>Склад компонентов <span class="version-badge">v8.9</span></h1>
+                    <h1>Склад компонентов <span class="version-badge">v9.0</span></h1>
                     <div class="header-sub">
                         <span class="stat-item">Позиций: <b id="stat-positions">0</b></span>
                         <span class="stat-dot"></span>
@@ -977,20 +971,23 @@
 
     <div class="files-panel">
         <div class="files-footer">
-            <label class="autosave-switch" title="Сохранять изменения в привязанные файлы сразу после каждого действия">
-                <input type="checkbox" id="chk_autosave" onchange="setAutosave(this.checked)">
-                <span class="toggle-track"></span>
-                <span>Автосохранение</span>
-            </label>
-            <span id="save-flash-global"></span>
-            <div class="spacer"></div>
-            <button class="btn-xl scan" onclick="openScanner()"><span>📷</span> Сканировать QR</button>
-            <button class="btn-xl history" onclick="openHistory()"><span>🕰</span> История</button>
-            <button class="btn-xl qr" onclick="openAllQRLabels()"><span>▦</span> QR-этикетки</button>
-            <button class="btn-xl excel" onclick="openExcelExportDialog()"><span>📊</span> Excel</button>
-            <button class="btn-xl clear" onclick="resetAll()"><span>🗑</span> Очистить всё</button>
-            <button class="btn-xl settings" onclick="openSettings()"><span>⚙️</span> Настройки</button>
-        </div>
+    <button class="btn-xl save" onclick="saveAll()" title="Сохранить склад и справочник в привязанные файлы">
+        <span>💾</span> Сохранить
+    </button>
+    <label class="autosave-switch" title="Сохранять изменения в привязанные файлы сразу после каждого действия">
+        <input type="checkbox" id="chk_autosave" onchange="setAutosave(this.checked)">
+        <span class="toggle-track"></span>
+        <span>Автосохранение</span>
+    </label>
+    <span id="save-flash-global"></span>
+    <div class="spacer"></div>
+    <button class="btn-xl scan" onclick="openScanner()"><span>📷</span> Сканировать QR</button>
+    <button class="btn-xl qr" onclick="openAllQRLabels()"><span>▦</span> QR-этикетки</button>
+    <button class="btn-xl history" onclick="openHistory()"><span>🕰</span> История</button>
+    <button class="btn-xl excel" onclick="openExcelExportDialog()"><span>📊</span> Excel</button>
+    <button class="btn-xl settings" onclick="openSettings()"><span>⚙️</span> Настройки</button>
+</div>
+
         <div class="fsa-warn hidden" id="fsa_warn">
             <span>⚠</span>
             <span>Ваш браузер не поддерживает прямую запись в файл. Открывайте через 📂 и сохраняйте через 💾 — при первом сохранении файл будет скачан.</span>
@@ -1353,13 +1350,13 @@
 </div>
 
 <script>
-const APP_VERSION = 'v8.9';
-const LS_KEY_WAREHOUSE = 'wh_warehouse_v89';
-const LS_KEY_CATALOG   = 'wh_catalog_v89';
-const AUTOSAVE_KEY     = 'wh_autosave_v89';
+const APP_VERSION = 'v9.0';
+const LS_KEY_WAREHOUSE = 'wh_warehouse_v90';
+const LS_KEY_CATALOG   = 'wh_catalog_v90';
+const AUTOSAVE_KEY     = 'wh_autosave_v90';
 const THEME_KEY        = 'wh_theme';
 const LEFT_COLLAPSED_KEY = 'wh_left_collapsed';
-const IDB_NAME         = 'wh_db_v89';
+const IDB_NAME         = 'wh_db_v90';
 
 let components = [];
 let componentTypes = [];
@@ -1783,10 +1780,14 @@ function setAutosave(v) {
     if (chkAutosave) chkAutosave.checked = v;
 }
 
-function flashSaved(which) {
+function flashSaved(which, customText) {
     const global = document.getElementById('save-flash-global');
     if (global) {
-        global.textContent = which === 'warehouse' ? '✓ Склад сохранён' : '✓ Справочник сохранён';
+        if (customText) {
+            global.textContent = customText;
+        } else {
+            global.textContent = which === 'warehouse' ? '✓ Склад сохранён' : '✓ Справочник сохранён';
+        }
         global.classList.add('show');
         clearTimeout(global._t);
         global._t = setTimeout(function(){ global.classList.remove('show'); }, 1800);
@@ -2228,7 +2229,7 @@ async function saveWarehouseAs() {
         await saveWarehouseToFile(false);
     } catch(e) { if (e.name !== 'AbortError') console.error(e); }
 }
-async function saveWarehouseToFile(interactive) {
+async function saveWarehouseToFile(interactive, silent) {
     if (!warehouseFileHandle) { if (interactive) await saveWarehouseAs(); return false; }
     try {
         let perm = 'granted';
@@ -2241,7 +2242,7 @@ async function saveWarehouseToFile(interactive) {
         const w = await warehouseFileHandle.createWritable();
         await w.write(warehouseContent());
         await w.close();
-        flashSaved('warehouse');
+        if (!silent) flashSaved('warehouse');
         return true;
     } catch(e) {
         if (interactive) alert('Не удалось сохранить склад: ' + e.message);
@@ -2289,7 +2290,7 @@ async function saveCatalogAs() {
         await saveCatalogToFile(false);
     } catch(e) { if (e.name !== 'AbortError') console.error(e); }
 }
-async function saveCatalogToFile(interactive) {
+async function saveCatalogToFile(interactive, silent) {
     if (!catalogFileHandle) { if (interactive) await saveCatalogAs(); return false; }
     try {
         let perm = 'granted';
@@ -2302,7 +2303,7 @@ async function saveCatalogToFile(interactive) {
         const w = await catalogFileHandle.createWritable();
         await w.write(catalogContent());
         await w.close();
-        flashSaved('catalog');
+        if (!silent) flashSaved('catalog');
         return true;
     } catch(e) {
         if (interactive) alert('Не удалось сохранить справочник: ' + e.message);
@@ -2327,6 +2328,44 @@ function updateCatalogUI() {
         statusCatalog.classList.remove('loaded');
         btnDetachCatalog.classList.add('hidden');
     }
+}
+
+/* ============================================================ */
+/*  СОХРАНИТЬ ВСЁ                                                */
+/* ============================================================ */
+async function saveAll() {
+    const hasWh = !!warehouseFileHandle;
+    const hasCat = !!catalogFileHandle;
+
+    if (!hasWh && !hasCat) {
+        showConfirm({
+            title: 'Файлы не привязаны',
+            bodyHtml: 'Ни склад, ни справочник не привязаны к файлу.<br><br>Откройте «Настройки» и выберите файлы для привязки.',
+            confirmText: 'Открыть настройки',
+            confirmClass: 'btn-primary',
+            icon: 'ℹ️',
+            iconClass: 'info',
+            onConfirm: () => openSettings()
+        });
+        return;
+    }
+
+    let msg = '';
+    if (hasWh && hasCat) {
+        const okW = await saveWarehouseToFile(true, true);
+        const okC = await saveCatalogToFile(true, true);
+        if (okW && okC) msg = '✓ Склад и справочник сохранены';
+        else if (okW) msg = '✓ Склад сохранён';
+        else if (okC) msg = '✓ Справочник сохранён';
+        else msg = '⚠️ Ошибка сохранения';
+    } else if (hasWh) {
+        const ok = await saveWarehouseToFile(true, true);
+        msg = ok ? '✓ Склад сохранён' : '⚠️ Ошибка сохранения склада';
+    } else {
+        const ok = await saveCatalogToFile(true, true);
+        msg = ok ? '✓ Справочник сохранён' : '⚠️ Ошибка сохранения справочника';
+    }
+    flashSaved(null, msg);
 }
 
 function downloadBlob(content, filename, mime) {
@@ -3238,7 +3277,6 @@ function exportToXlsFallback(data, includeCatalog, filename) {
 })();
 </script>
 
-<!-- ============ Регистрация Service Worker ============ -->
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -3248,7 +3286,6 @@ function exportToXlsFallback(data, includeCatalog, filename) {
         });
     }
 </script>
-<!-- ==================================================== -->
 
 </body>
 </html>
