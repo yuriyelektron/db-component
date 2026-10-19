@@ -1,4 +1,4 @@
-const CACHE_NAME = 'warehouse-v8.8-cache-v1';
+const CACHE_NAME = 'warehouse-v9.0-cache-v1';
 
 const ASSETS = [
   './',
